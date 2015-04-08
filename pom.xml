@@ -82,6 +82,7 @@
     <module>embedded-cassandra/embedded-cassandra-service</module>
     <module>embedded-cassandra/embedded-cassandra-ear</module>
     <module>api/metrics-api-jaxrs</module>
+    <module>wildfly-exntension</module>
     <module>rest-tests</module>
     <module>clients</module>
     <module>ui/explorer</module>
