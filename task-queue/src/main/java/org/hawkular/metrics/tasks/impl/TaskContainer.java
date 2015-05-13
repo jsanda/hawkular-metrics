@@ -16,6 +16,9 @@
  */
 package org.hawkular.metrics.tasks.impl;
 
+import static java.util.stream.Collectors.toSet;
+import static org.joda.time.DateTimeZone.UTC;
+
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
@@ -25,8 +28,8 @@ import java.util.Spliterators;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import org.hawkular.metrics.tasks.api.TaskType;
 import org.hawkular.metrics.tasks.api.Task;
+import org.hawkular.metrics.tasks.api.TaskType;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 
@@ -70,12 +73,12 @@ class TaskContainer implements Iterable<Task> {
     public TaskContainer(TaskType taskType, DateTime timeSlice, String target, Set<String> sources, int interval,
             int window, Set<DateTime> failedTimeSlices) {
         this.taskType = taskType;
-        this.timeSlice = timeSlice;
+        this.timeSlice = timeSlice.toDateTime(UTC);
         this.target = target;
         this.sources = sources;
         this.interval = Duration.standardMinutes(interval);
         this.window = Duration.standardMinutes(window);
-        this.failedTimeSlices.addAll(failedTimeSlices);
+        this.failedTimeSlices.addAll(failedTimeSlices.stream().map(dt -> dt.toDateTime(UTC)).collect(toSet()));
     }
 
     public TaskType getTaskType() {

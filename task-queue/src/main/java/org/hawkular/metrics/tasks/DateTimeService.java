@@ -26,14 +26,14 @@ import org.joda.time.Hours;
 import org.joda.time.Period;
 
 /**
+ * All DateTime instances are converted to UTC in order to avoid problems due to transitions from DST to non-DST.
+ *
  * @author jsanda
  */
 public class DateTimeService {
 
-    static {
-        // Force the timezone to UTC to avoid any problems due to transitions from DST to non-DST
-        DateTimeZone.setDefault(DateTimeZone.UTC);
-    }
+    private static final DateTimeZone DEFAULT_TIME_ZONE = DateTimeZone.UTC;
+
 
     /**
      * @return A DateTime object rounded down to the start of the current hour. For example, if the current time is
@@ -64,7 +64,8 @@ public class DateTimeService {
         return getTimeSlice(time, Days.ONE.toStandardDuration());
     }
 
-    public DateTime getTimeSlice(DateTime dt, Duration duration) {
+    public DateTime getTimeSlice(DateTime dateTime, Duration duration) {
+        DateTime dt = dateTime.toDateTime(DEFAULT_TIME_ZONE);
         Period p = duration.toPeriod();
 
         if (p.getYears() != 0) {
