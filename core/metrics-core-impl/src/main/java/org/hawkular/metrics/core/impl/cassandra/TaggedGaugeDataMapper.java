@@ -33,10 +33,9 @@ import com.google.common.base.Function;
 /**
  * @author John Sanda
  */
-public class TaggedGaugeDataMapper implements Function<ResultSet, Map<MetricId, Set<GaugeData>>> {
+public class TaggedGaugeDataMapper {
 
-    @Override
-    public Map<MetricId, Set<GaugeData>> apply(ResultSet resultSet) {
+    public static Map<MetricId, Set<GaugeData>> apply(ResultSet resultSet) {
         Map<MetricId, Set<GaugeData>> taggedData = new HashMap<>();
         Gauge metric = null;
         LinkedHashSet<GaugeData> set = new LinkedHashSet<>();
@@ -62,11 +61,11 @@ public class TaggedGaugeDataMapper implements Function<ResultSet, Map<MetricId, 
         return taggedData;
     }
 
-    private Gauge createMetric(Row row) {
+    private static Gauge createMetric(Row row) {
         return new Gauge(row.getString(0), new MetricId(row.getString(4), Interval.parse(row.getString(5))));
     }
 
-    private GaugeData createGaugeData(Row row) {
+    private static GaugeData createGaugeData(Row row) {
         return new GaugeData(row.getUUID(6), row.getDouble(7));
     }
 

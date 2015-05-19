@@ -59,6 +59,9 @@ import com.datastax.driver.core.UserType;
 import com.datastax.driver.core.utils.UUIDs;
 
 import rx.Observable;
+import rx.Observer;
+import rx.functions.Action0;
+import rx.functions.Func1;
 
 /**
  *
@@ -385,9 +388,9 @@ public class DataAccessImpl implements DataAccess {
     }
 
     @Override
-    public ResultSetFuture getMetricTags(String tenantId, MetricType type, MetricId id, long dpart) {
-        return session.executeAsync(getMetricTags.bind(tenantId, type.getCode(), id.getName(), id.getInterval()
-            .toString(), dpart));
+    public Observable<ResultSet> getMetricTags(String tenantId, MetricType type, MetricId id, long dpart) {
+        return rxSession.execute(getMetricTags.bind(tenantId, type.getCode(), id.getName(), id.getInterval()
+                .toString(), dpart));
     }
 
     // This method updates the metric tags and data retention in the data table. In the
@@ -396,41 +399,41 @@ public class DataAccessImpl implements DataAccess {
     // determine when we start writing data to a new partition, e.g., the start of the next
     // day, and then add the tags and retention to the new partition.
     @Override
-    public ResultSetFuture addTagsAndDataRetention(Metric metric) {
-        return session.executeAsync(addMetadataAndDataRetention.bind(getTags(metric), metric.getDataRetention(),
-            metric.getTenantId(), metric.getType().getCode(), metric.getId().getName(),
-            metric.getId().getInterval().toString(), metric.getDpart()));
+    public Observable<ResultSet> addTagsAndDataRetention(Metric metric) {
+        return rxSession.execute(addMetadataAndDataRetention.bind(getTags(metric), metric.getDataRetention(),
+            metric.getTenantId(), metric.getType().getCode(), metric.getId().getName(), metric.getId().getInterval()
+                .toString(), metric.getDpart()));
     }
 
     @Override
-    public ResultSetFuture addTags(Metric<?> metric, Map<String, String> tags) {
+    public Observable<ResultSet> addTags(Metric<?> metric, Map<String, String> tags) {
         BatchStatement batch = new BatchStatement(BatchStatement.Type.UNLOGGED);
         batch.add(addMetricTagsToDataTable.bind(tags, metric.getTenantId(), metric.getType().getCode(),
             metric.getId().getName(), metric.getId().getInterval().toString(), metric.getDpart()));
         batch.add(addTagsToMetricsIndex.bind(tags, metric.getTenantId(), metric.getType().getCode(),
             metric.getId().getInterval().toString(), metric.getId().getName()));
-        return session.executeAsync(batch);
+        return rxSession.execute(batch);
     }
 
     @Override
-    public ResultSetFuture deleteTags(Metric<?> metric, Set<String> tags) {
+    public Observable<ResultSet> deleteTags(Metric<?> metric, Set<String> tags) {
         BatchStatement batch = new BatchStatement(BatchStatement.Type.UNLOGGED);
         batch.add(deleteMetricTagsFromDataTable.bind(tags, metric.getTenantId(), metric.getType().getCode(),
             metric.getId().getName(), metric.getId().getInterval().toString(), metric.getDpart()));
         batch.add(deleteTagsFromMetricsIndex.bind(tags, metric.getTenantId(), metric.getType().getCode(),
             metric.getId().getInterval().toString(), metric.getId().getName()));
-        return session.executeAsync(batch);
+        return rxSession.execute(batch);
     }
 
     @Override
-    public ResultSetFuture updateTagsInMetricsIndex(Metric<?> metric, Map<String, String> additions,
-        Set<String> deletions) {
+    public Observable<ResultSet> updateTagsInMetricsIndex(Metric<?> metric, Map<String, String> additions,
+                                                          Set<String> deletions) {
         BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED)
             .add(addTagsToMetricsIndex.bind(additions, metric.getTenantId(),
                 metric.getType().getCode(), metric.getId().getInterval().toString(), metric.getId().getName()))
             .add(deleteTagsFromMetricsIndex.bind(deletions, metric.getTenantId(), metric.getType().getCode(),
                 metric.getId().getInterval().toString(), metric.getId().getName()));
-        return session.executeAsync(batchStatement);
+        return rxSession.execute(batchStatement);
     }
 
     @Override
@@ -541,44 +544,42 @@ public class DataAccessImpl implements DataAccess {
     }
 
     @Override
-    public ResultSetFuture insertGuageTag(String tag, String tagValue, Gauge metric,
-            List<GaugeData> data) {
+    public Observable<ResultSet> insertGaugeTag(String tag, String tagValue, Gauge metric,
+                                                Observable<GaugeData> data) {
         BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
-        for (GaugeData d : data) {
+        data.map(d ->
             batchStatement.add(insertGaugeTags.bind(metric.getTenantId(), tag, tagValue,
                     MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-                    d.getTimeUUID(), d.getValue(), d.getTTL()));
-        }
-        return session.executeAsync(batchStatement);
+                    d.getTimeUUID(), d.getValue(), d.getTTL())));
+        return rxSession.execute(batchStatement);
     }
 
     @Override
-    public ResultSetFuture insertAvailabilityTag(String tag, String tagValue, Availability metric,
-            List<AvailabilityData> data) {
+    public Observable<ResultSet> insertAvailabilityTag(String tag, String tagValue, Availability metric,
+                                                       Observable<AvailabilityData> data) {
         BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
-        for (AvailabilityData a : data) {
-            batchStatement.add(insertAvailabilityTags.bind(metric.getTenantId(), tag, tagValue,
-                    MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval()
-                            .toString(), a.getTimeUUID(), a.getBytes(), a.getTTL()));
-        }
-        return session.executeAsync(batchStatement);
+
+        data.map(a -> batchStatement.add(insertAvailabilityTags.bind(metric.getTenantId(), tag, tagValue,
+                                                                     MetricType.AVAILABILITY.getCode(), metric.getId().getName(),
+                                                                     metric.getId().getInterval().toString(), a.getTimeUUID(), a.getBytes(), a.getTTL())));
+
+        return rxSession.execute(batchStatement);
     }
 
     @Override
-    public ResultSetFuture updateDataWithTag(Metric<?> metric, MetricData data, Map<String, String> tags) {
-        return session.executeAsync(updateDataWithTags.bind(tags, metric.getTenantId(), metric.getType().getCode(),
-                metric.getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(),
-                data.getTimeUUID()));
+    public Observable<ResultSet> updateDataWithTag(Metric<?> metric, MetricData data, Map<String, String> tags) {
+        return rxSession.execute(updateDataWithTags.bind(tags, metric.getTenantId(), metric.getType().getCode(), metric
+            .getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(), data.getTimeUUID()));
     }
 
     @Override
-    public ResultSetFuture findGuageDataByTag(String tenantId, String tag, String tagValue) {
-        return session.executeAsync(findGaugeDataByTag.bind(tenantId, tag, tagValue));
+    public Observable<ResultSet> findGaugeDataByTag(String tenantId, String tag, String tagValue) {
+        return rxSession.execute(findGaugeDataByTag.bind(tenantId, tag, tagValue));
     }
 
     @Override
-    public ResultSetFuture findAvailabilityByTag(String tenantId, String tag, String tagValue) {
-        return session.executeAsync(findAvailabilityByTag.bind(tenantId, tag, tagValue));
+    public Observable<ResultSet> findAvailabilityByTag(String tenantId, String tag, String tagValue) {
+        return rxSession.execute(findAvailabilityByTag.bind(tenantId, tag, tagValue));
     }
 
     @Override
@@ -632,27 +633,27 @@ public class DataAccessImpl implements DataAccess {
     }
 
     @Override
-    public ResultSetFuture insertIntoMetricsTagsIndex(Metric<?> metric, Map<String, String> tags) {
+    public Observable<ResultSet> insertIntoMetricsTagsIndex(Metric<?> metric, Map<String, String> tags) {
         return executeTagsBatch(tags, (name, value) -> insertMetricsTagsIndex.bind(metric.getTenantId(), name, value,
             metric.getType().getCode(), metric.getId().getName(), metric.getId().getInterval().toString()));
     }
 
     @Override
-    public ResultSetFuture deleteFromMetricsTagsIndex(Metric<?> metric, Map<String, String> tags) {
+    public Observable<ResultSet> deleteFromMetricsTagsIndex(Metric<?> metric, Map<String, String> tags) {
         return executeTagsBatch(tags, (name, value) -> deleteMetricsTagsIndex.bind(metric.getTenantId(), name, value,
             metric.getType().getCode(), metric.getId().getName(), metric.getId().getInterval().toString()));
     }
 
-    private ResultSetFuture executeTagsBatch(Map<String, String> tags,
-        BiFunction<String, String, BoundStatement> bindVars) {
+    private Observable<ResultSet> executeTagsBatch(Map<String, String> tags,
+                                                   BiFunction<String, String, BoundStatement> bindVars) {
         BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
         tags.entrySet().stream().forEach(entry -> batchStatement.add(bindVars.apply(entry.getKey(), entry.getValue())));
-        return session.executeAsync(batchStatement);
+        return rxSession.execute(batchStatement);
     }
 
     @Override
-    public ResultSetFuture findMetricsByTag(String tenantId, String tag) {
-        return session.executeAsync(findMetricsByTagName.bind(tenantId, tag));
+    public Observable<ResultSet> findMetricsByTag(String tenantId, String tag) {
+        return rxSession.execute(findMetricsByTagName.bind(tenantId, tag));
     }
 
     @Override
