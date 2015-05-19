@@ -488,11 +488,9 @@ public class MetricsServiceCassandra implements MetricsService {
                             // future fails, we treat the entire client request as a failure. We probably
                             // eventually want to implement more fine-grained error handling where we can
                             // notify the subscriber of what exactly fails.
-                            ResultSetFuture metadataFuture = dataAccess.addTagsAndDataRetention(metric);
-                            Observable<ResultSet> metadataUpdated = RxUtil.from(metadataFuture, metricsTasks);
-                            ResultSetFuture tagsFuture = dataAccess.insertIntoMetricsTagsIndex(metric,
-                                    metric.getTags());
-                            Observable<ResultSet> tagsUpdated = RxUtil.from(tagsFuture, metricsTasks);
+                            Observable<ResultSet> metadataUpdated = dataAccess.addTagsAndDataRetention(metric);
+                            Observable<ResultSet> tagsUpdated =  dataAccess.insertIntoMetricsTagsIndex(metric,
+                                                                                               metric.getTags());
                             Observable<ResultSet> metricUpdates;
 
                             if (metric.getDataRetention() != null) {
@@ -573,37 +571,29 @@ public class MetricsServiceCassandra implements MetricsService {
     }
 
     @Override
-    public ListenableFuture<Map<String, String>> getMetricTags(String tenantId, MetricType type, MetricId id) {
-        ResultSetFuture metricTags = dataAccess.getMetricTags(tenantId, type, id, Metric.DPART);
-        return Futures.transform(metricTags, (ResultSet input) -> {
-            if (input.isExhausted()) {
-                return Collections.EMPTY_MAP;
-            }
-            return input.one().getMap(0, String.class, String.class);
-        }, metricsTasks);
+    public Observable<Map<String, String>> getMetricTags(String tenantId, MetricType type, MetricId id) {
+        Observable<ResultSet> metricTags = dataAccess.getMetricTags(tenantId, type, id, Metric.DPART);
+
+        return metricTags.flatMap(Observable::from).take(1).map(row -> row.getMap(0, String.class, String.class))
+            .defaultIfEmpty(Collections.EMPTY_MAP);
     }
 
     // Adding/deleting metric tags currently involves writing to three tables - data,
     // metrics_idx, and metrics_tags_idx. It might make sense to refactor tag related
     // functionality into a separate class.
     @Override
-    public ListenableFuture<Void> addTags(Metric metric, Map<String, String> tags) {
-        List<ResultSetFuture> insertFutures = asList(
-            dataAccess.addTags(metric, tags),
-            dataAccess.insertIntoMetricsTagsIndex(metric, tags)
-        );
-        ListenableFuture<List<ResultSet>> insertsFuture = Futures.allAsList(insertFutures);
-        return Futures.transform(insertsFuture, Functions.TO_VOID, metricsTasks);
+    public Observable<Void> addTags(Metric metric, Map<String, String> tags) {
+        Observable<ResultSet> addTags = dataAccess.addTags(metric, tags);
+        Observable<ResultSet> intoMetricsTagsIndex = dataAccess.insertIntoMetricsTagsIndex(metric, tags);
+
+        return addTags.mergeWith(intoMetricsTagsIndex).flatMap(results -> null);
     }
 
+
     @Override
-    public ListenableFuture<Void> deleteTags(Metric metric, Map<String, String> tags) {
-        List<ResultSetFuture> deleteFutures = asList(
-            dataAccess.deleteTags(metric, tags.keySet()),
-            dataAccess.deleteFromMetricsTagsIndex(metric, tags)
-        );
-        ListenableFuture<List<ResultSet>> deletesFuture = Futures.allAsList(deleteFutures);
-        return Futures.transform(deletesFuture, Functions.TO_VOID, metricsTasks);
+    public Observable<Void> deleteTags(Metric metric, Map<String, String> tags) {
+        return dataAccess.deleteTags(metric, tags.keySet())
+            .mergeWith(dataAccess.deleteFromMetricsTagsIndex(metric, tags)).flatMap(results -> null);
     }
 
     @Override
