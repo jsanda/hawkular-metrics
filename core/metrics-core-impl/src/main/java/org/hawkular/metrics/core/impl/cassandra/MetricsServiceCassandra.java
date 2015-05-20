@@ -799,9 +799,11 @@ public class MetricsServiceCassandra implements MetricsService {
                 .cache();
 
         Observable<ResultSet> tagInsert = tagsObservable
+                .doOnNext(t -> logger.info("inserting " + t))
                 .flatMap(t -> dataAccess.insertAvailabilityTag(t.getKey(), t.getValue(), metric, availabilities));
 
         Observable<ResultSet> tagsInsert = availabilities
+                .doOnNext(a -> logger.info("availabilities: " + a))
                 .flatMap(a -> dataAccess.updateDataWithTag(metric, a, tags));
 
         return tagInsert.mergeWith(tagsInsert);
