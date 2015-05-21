@@ -54,7 +54,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.hawkular.metrics.core.api.Availability;
 import org.hawkular.metrics.core.api.AvailabilityBucketDataPoint;
 import org.hawkular.metrics.core.api.AvailabilityData;
@@ -83,7 +82,6 @@ import org.joda.time.Duration;
 import org.joda.time.Hours;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import rx.Observable;
 
 /**
@@ -468,39 +466,39 @@ public class MetricsServiceCassandra implements MetricsService {
         ResultSetFuture future = dataAccess.insertMetricInMetricsIndex(metric);
         Observable<ResultSet> indexUpdated = RxUtil.from(future, metricsTasks);
         return Observable.create(subscriber ->
-            indexUpdated.subscribe(
-                    resultSet -> {
-                        if (!resultSet.wasApplied()) {
-                            subscriber.onError(new MetricAlreadyExistsException(metric));
+                indexUpdated.subscribe(
+                        resultSet -> {
+                            if (!resultSet.wasApplied()) {
+                                subscriber.onError(new MetricAlreadyExistsException(metric));
 
-                        } else {
-                            // TODO Need error handling if either of the following updates fail
-                            // If adding tags/retention fails, then we want to report the error to the
-                            // client. Updating the retentions_idx table could also fail. We need to
-                            // report that failure as well.
-                            //
-                            // The error handling is the same as it was with Guava futures. That is, if any
-                            // future fails, we treat the entire client request as a failure. We probably
-                            // eventually want to implement more fine-grained error handling where we can
-                            // notify the subscriber of what exactly fails.
-                            Observable<ResultSet> metadataUpdated = dataAccess.addTagsAndDataRetention(metric);
-                            Observable<ResultSet> tagsUpdated =  dataAccess.insertIntoMetricsTagsIndex(metric,
-                                                                                               metric.getTags());
-                            Observable<ResultSet> metricUpdates;
-
-                            if (metric.getDataRetention() != null) {
-                                ResultSetFuture dataRetentionFuture = dataAccess.updateRetentionsIndex(metric);
-                                Observable<ResultSet> dataRetentionUpdated = RxUtil.from(dataRetentionFuture,
-                                        metricsTasks);
-                                dataRetentions.put(new DataRetentionKey(metric), metric.getDataRetention());
-                                metricUpdates = Observable.merge(metadataUpdated, tagsUpdated, dataRetentionUpdated);
                             } else {
-                                metricUpdates = Observable.merge(metadataUpdated, tagsUpdated);
-                            }
+                                // TODO Need error handling if either of the following updates fail
+                                // If adding tags/retention fails, then we want to report the error to the
+                                // client. Updating the retentions_idx table could also fail. We need to
+                                // report that failure as well.
+                                //
+                                // The error handling is the same as it was with Guava futures. That is, if any
+                                // future fails, we treat the entire client request as a failure. We probably
+                                // eventually want to implement more fine-grained error handling where we can
+                                // notify the subscriber of what exactly fails.
+                                Observable<ResultSet> metadataUpdated = dataAccess.addTagsAndDataRetention(metric);
+                                Observable<ResultSet> tagsUpdated = dataAccess.insertIntoMetricsTagsIndex(metric,
+                                        metric.getTags());
+                                Observable<ResultSet> metricUpdates;
 
-                            metricUpdates.subscribe(new VoidSubscriber<>(subscriber));
-                        }
-                    }));
+                                if (metric.getDataRetention() != null) {
+                                    ResultSetFuture dataRetentionFuture = dataAccess.updateRetentionsIndex(metric);
+                                    Observable<ResultSet> dataRetentionUpdated = RxUtil.from(dataRetentionFuture,
+                                            metricsTasks);
+                                    dataRetentions.put(new DataRetentionKey(metric), metric.getDataRetention());
+                                    metricUpdates = Observable.merge(metadataUpdated, tagsUpdated, dataRetentionUpdated);
+                                } else {
+                                    metricUpdates = Observable.merge(metadataUpdated, tagsUpdated);
+                                }
+
+                                metricUpdates.subscribe(new VoidSubscriber<>(subscriber));
+                            }
+                        }));
     }
 
     @Override
@@ -609,7 +607,7 @@ public class MetricsServiceCassandra implements MetricsService {
                         })
                         .map(Futures::allAsList)
                         .map(insertsFuture -> RxUtil.from(insertsFuture, metricsTasks))
-                                         .subscribe(new VoidSubscriber<>(subscriber))
+                        .subscribe(new VoidSubscriber<>(subscriber))
         );
     }
 
@@ -776,7 +774,7 @@ public class MetricsServiceCassandra implements MetricsService {
     public Observable<ResultSet> tagGaugeData(Gauge metric, final Map<String, String> tags,
                                               long start, long end) {
         Observable<ResultSet> findDataObservable = dataAccess.findData(metric.getTenantId(), metric.getId(), start, end,
-                                                                true);
+                true);
         return tagGaugeData(findDataObservable, tags, metric);
     }
 

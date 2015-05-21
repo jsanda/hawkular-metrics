@@ -39,7 +39,6 @@ import com.datastax.driver.core.TupleValue;
 import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.UserType;
 import com.datastax.driver.core.utils.UUIDs;
-
 import org.hawkular.metrics.core.api.AggregationTemplate;
 import org.hawkular.metrics.core.api.Availability;
 import org.hawkular.metrics.core.api.AvailabilityData;
@@ -57,7 +56,6 @@ import org.hawkular.metrics.core.api.Tenant;
 import org.hawkular.metrics.core.api.TimeUUIDUtils;
 import org.hawkular.rx.cassandra.driver.RxSession;
 import org.hawkular.rx.cassandra.driver.RxSessionImpl;
-
 import rx.Observable;
 
 /**
@@ -398,8 +396,8 @@ public class DataAccessImpl implements DataAccess {
     @Override
     public Observable<ResultSet> addTagsAndDataRetention(Metric metric) {
         return rxSession.execute(addMetadataAndDataRetention.bind(getTags(metric), metric.getDataRetention(),
-            metric.getTenantId(), metric.getType().getCode(), metric.getId().getName(), metric.getId().getInterval()
-                .toString(), metric.getDpart()));
+                metric.getTenantId(), metric.getType().getCode(), metric.getId().getName(), metric.getId().getInterval()
+                        .toString(), metric.getDpart()));
     }
 
     @Override
@@ -495,12 +493,12 @@ public class DataAccessImpl implements DataAccess {
     public Observable<ResultSet> findData(Gauge metric, long timestamp, boolean includeWriteTime) {
         if (includeWriteTime) {
             return rxSession.execute(findGaugeDataWithWriteTimeByDateRangeInclusive.bind(metric.getTenantId(),
-                MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-                metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
+                    MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
+                    metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
         } else {
             return rxSession.execute(findGaugeDataByDateRangeInclusive.bind(metric.getTenantId(),
-                MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-                metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
+                    MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
+                    metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
         }
     }
 
@@ -513,20 +511,20 @@ public class DataAccessImpl implements DataAccess {
     public Observable<ResultSet> findData(Availability metric, long startTime, long endTime, boolean includeWriteTime) {
         if (includeWriteTime) {
             return rxSession.execute(findAvailabilitiesWithWriteTime.bind(metric.getTenantId(),
-                MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-                metric.getDpart(), TimeUUIDUtils.getTimeUUID(startTime), TimeUUIDUtils.getTimeUUID(endTime)));
+                    MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
+                    metric.getDpart(), TimeUUIDUtils.getTimeUUID(startTime), TimeUUIDUtils.getTimeUUID(endTime)));
         } else {
             return rxSession.execute(findAvailabilities.bind(metric.getTenantId(), MetricType.AVAILABILITY.getCode(),
-                metric.getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(),
-                TimeUUIDUtils.getTimeUUID(startTime), TimeUUIDUtils.getTimeUUID(endTime)));
+                    metric.getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(),
+                    TimeUUIDUtils.getTimeUUID(startTime), TimeUUIDUtils.getTimeUUID(endTime)));
         }
     }
 
     @Override
     public Observable<ResultSet> findData(Availability metric, long timestamp) {
         return rxSession.execute(findAvailabilityByDateRangeInclusive.bind(metric.getTenantId(),
-            MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-            metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
+                MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
+                metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
     }
 
     @Override
@@ -543,13 +541,12 @@ public class DataAccessImpl implements DataAccess {
     @Override
     public Observable<ResultSet> insertGaugeTag(String tag, String tagValue, Gauge metric,
                                                 Observable<GaugeData> data) {
-        BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
-        data.forEach(d ->
-            batchStatement.add(insertGaugeTags.bind(metric.getTenantId(), tag, tagValue,
+        return data.reduce(new BatchStatement(BatchStatement.Type.UNLOGGED), (BatchStatement batch, GaugeData d) -> {
+            batch.add(insertGaugeTags.bind(metric.getTenantId(), tag, tagValue,
                     MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-                    d.getTimeUUID(), d.getValue(), d.getTTL())));
-        System.out.println("BatchStatement: " + batchStatement.toString());
-        return rxSession.execute(batchStatement);
+                    d.getTimeUUID(), d.getValue(), d.getTTL()));
+            return batch;
+        }).flatMap(rxSession::execute);
     }
 
     @Override
@@ -568,7 +565,7 @@ public class DataAccessImpl implements DataAccess {
     public Observable<ResultSet> updateDataWithTag(Metric<?> metric, MetricData data, Map<String, String> tags) {
         System.out.println("UpdateDataWithTag: " + metric.getId());
         return rxSession.execute(updateDataWithTags.bind(tags, metric.getTenantId(), metric.getType().getCode(), metric
-            .getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(), data.getTimeUUID()));
+                .getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(), data.getTimeUUID()));
     }
 
     @Override
