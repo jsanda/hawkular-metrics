@@ -777,6 +777,11 @@ public class MetricsServiceCassandra implements MetricsService {
                                               long start, long end) {
         Observable<ResultSet> findDataObservable = dataAccess.findData(metric.getTenantId(), metric.getId(), start, end,
                                                                 true);
+        return tagGaugeData(findDataObservable, tags, metric);
+    }
+
+    private Observable<ResultSet> tagGaugeData(Observable<ResultSet> findDataObservable, Map<String, String> tags,
+                                               Gauge metric) {
         int ttl = getTTL(metric);
         Observable<Map.Entry<String, String>> tagsObservable = Observable.from(tags.entrySet()).cache();
         Observable<GaugeData> gauges = findDataObservable.flatMap(Observable::from)
@@ -793,11 +798,8 @@ public class MetricsServiceCassandra implements MetricsService {
         return tagInsert.concatWith(tagsInsert);
     }
 
-    private Observable<ResultSet> tagAvailabilityData(Observable<ResultSet> findDataObservable, Map<String, String>
-            tags, Availability metric) {
-        /**
-         * @TODO Convert the following to an operator (repeated code)
-         */
+    private Observable<ResultSet> tagAvailabilityData(Observable<ResultSet> findDataObservable,
+                                                      Map<String, String> tags, Availability metric) {
         int ttl = getTTL(metric);
         Observable<Map.Entry<String, String>> tagsObservable = Observable.from(tags.entrySet()).cache();
         Observable<AvailabilityData> availabilities = findDataObservable.flatMap(Observable::from)
@@ -806,19 +808,20 @@ public class MetricsServiceCassandra implements MetricsService {
                 .cache();
 
         Observable<ResultSet> tagInsert = tagsObservable
+//                .doOnNext(t -> logger.info("tagInsert: " + t))
                 .flatMap(t -> dataAccess.insertAvailabilityTag(t.getKey(), t.getValue(), metric, availabilities));
 
         Observable<ResultSet> tagsInsert = availabilities
+//                .doOnNext(t -> logger.info("availabilities: " + t + ", " + tags))
                 .flatMap(a -> dataAccess.updateDataWithTag(metric, a, tags));
 
-        return tagInsert.mergeWith(tagsInsert);
+        return tagInsert.concatWith(tagsInsert);
     }
 
     @Override
     public Observable<ResultSet> tagAvailabilityData(Availability metric,
                                                      Map<String, String> tags, long start, long end) {
-        ResultSetFuture queryFuture = dataAccess.findData(metric, start, end, true);
-        Observable<ResultSet> findDataObservable = Observable.from(queryFuture);
+        Observable<ResultSet> findDataObservable = dataAccess.findData(metric, start, end, true);
         return tagAvailabilityData(findDataObservable, tags, metric);
     }
 
@@ -831,29 +834,14 @@ public class MetricsServiceCassandra implements MetricsService {
     @Override
     public Observable<ResultSet> tagGaugeData(Gauge metric, final Map<String, String> tags,
                                               long timestamp) {
-        ListenableFuture<ResultSet> queryFuture = dataAccess.findData(metric, timestamp, true);
-        Observable<ResultSet> findDataObservable = Observable.from(queryFuture);
-        int ttl = getTTL(metric);
-        Observable<Map.Entry<String, String>> tagsObservable = Observable.from(tags.entrySet()).cache();
-        Observable<GaugeData> gauges = findDataObservable.flatMap(Observable::from)
-                .map(Functions::getGaugeDataAndWriteTime)
-                .map(g -> (GaugeData) computeTTL(g, ttl))
-                .cache();
-
-        Observable<ResultSet> tagInsert = tagsObservable
-                .flatMap(t -> dataAccess.insertGaugeTag(t.getKey(), t.getValue(), metric, gauges));
-
-        Observable<ResultSet> tagsInsert = gauges
-                .flatMap(g -> dataAccess.updateDataWithTag(metric, g, tags));
-
-        return tagInsert.mergeWith(tagsInsert);
+        Observable<ResultSet> findDataObservable = dataAccess.findData(metric, timestamp, true);
+        return tagGaugeData(findDataObservable, tags, metric);
     }
 
     @Override
     public Observable<ResultSet> tagAvailabilityData(Availability metric,
                                                      final Map<String, String> tags, long timestamp) {
-        ListenableFuture<ResultSet> queryFuture = dataAccess.findData(metric, timestamp);
-        Observable<ResultSet> findDataObservable = Observable.from(queryFuture);
+        Observable<ResultSet> findDataObservable = dataAccess.findData(metric, timestamp);
         return tagAvailabilityData(findDataObservable, tags, metric);
     }
 
@@ -875,7 +863,7 @@ public class MetricsServiceCassandra implements MetricsService {
 
         return Observable.from(tags.entrySet())
                 .flatMap(e -> dataAccess.findAvailabilityByTag(tenantId, e.getKey(), e.getValue()))
-                .map(TaggedAvailabilityMappper::apply)
+                .map(TaggedAvailabilityMapper::apply)
                 .toList()
                 .map(r -> f.apply(r));
     }

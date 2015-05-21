@@ -77,13 +77,13 @@ public interface DataAccess {
     Observable<ResultSet> findData(String tenantId, MetricId id, long startTime, long endTime,
             boolean includeWriteTime);
 
-    ResultSetFuture findData(Gauge metric, long timestamp, boolean includeWriteTime);
+    Observable<ResultSet> findData(Gauge metric, long timestamp, boolean includeWriteTime);
 
-    ResultSetFuture findData(Availability metric, long startTime, long endTime);
+    Observable<ResultSet> findData(Availability metric, long startTime, long endTime);
 
-    ResultSetFuture findData(Availability metric, long startTime, long endTime, boolean includeWriteTime);
+    Observable<ResultSet> findData(Availability metric, long startTime, long endTime, boolean includeWriteTime);
 
-    ResultSetFuture findData(Availability metric, long timestamp);
+    Observable<ResultSet> findData(Availability metric, long timestamp);
 
     ResultSetFuture deleteGuageMetric(String tenantId, String metric, Interval interval, long dpart);
 

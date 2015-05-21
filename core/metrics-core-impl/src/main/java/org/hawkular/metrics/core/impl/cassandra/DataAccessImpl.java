@@ -492,39 +492,39 @@ public class DataAccessImpl implements DataAccess {
     }
 
     @Override
-    public ResultSetFuture findData(Gauge metric, long timestamp, boolean includeWriteTime) {
+    public Observable<ResultSet> findData(Gauge metric, long timestamp, boolean includeWriteTime) {
         if (includeWriteTime) {
-            return session.executeAsync(findGaugeDataWithWriteTimeByDateRangeInclusive.bind(metric.getTenantId(),
+            return rxSession.execute(findGaugeDataWithWriteTimeByDateRangeInclusive.bind(metric.getTenantId(),
                 MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
                 metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
         } else {
-            return session.executeAsync(findGaugeDataByDateRangeInclusive.bind(metric.getTenantId(),
+            return rxSession.execute(findGaugeDataByDateRangeInclusive.bind(metric.getTenantId(),
                 MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
                 metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
         }
     }
 
     @Override
-    public ResultSetFuture findData(Availability metric, long startTime, long endTime) {
+    public Observable<ResultSet> findData(Availability metric, long startTime, long endTime) {
         return findData(metric, startTime, endTime, false);
     }
 
     @Override
-    public ResultSetFuture findData(Availability metric, long startTime, long endTime, boolean includeWriteTime) {
+    public Observable<ResultSet> findData(Availability metric, long startTime, long endTime, boolean includeWriteTime) {
         if (includeWriteTime) {
-            return session.executeAsync(findAvailabilitiesWithWriteTime.bind(metric.getTenantId(),
+            return rxSession.execute(findAvailabilitiesWithWriteTime.bind(metric.getTenantId(),
                 MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
                 metric.getDpart(), TimeUUIDUtils.getTimeUUID(startTime), TimeUUIDUtils.getTimeUUID(endTime)));
         } else {
-            return session.executeAsync(findAvailabilities.bind(metric.getTenantId(), MetricType.AVAILABILITY.getCode(),
+            return rxSession.execute(findAvailabilities.bind(metric.getTenantId(), MetricType.AVAILABILITY.getCode(),
                 metric.getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(),
                 TimeUUIDUtils.getTimeUUID(startTime), TimeUUIDUtils.getTimeUUID(endTime)));
         }
     }
 
     @Override
-    public ResultSetFuture findData(Availability metric, long timestamp) {
-        return session.executeAsync(findAvailabilityByDateRangeInclusive.bind(metric.getTenantId(),
+    public Observable<ResultSet> findData(Availability metric, long timestamp) {
+        return rxSession.execute(findAvailabilityByDateRangeInclusive.bind(metric.getTenantId(),
             MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
             metric.getDpart(), UUIDs.startOf(timestamp), UUIDs.endOf(timestamp)));
     }

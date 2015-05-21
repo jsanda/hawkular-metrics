@@ -133,22 +133,22 @@ public class DelegatingDataAccess implements DataAccess {
     }
 
     @Override
-    public ResultSetFuture findData(Gauge metric, long timestamp, boolean includeWriteTime) {
+    public Observable<ResultSet> findData(Gauge metric, long timestamp, boolean includeWriteTime) {
         return delegate.findData(metric, timestamp, includeWriteTime);
     }
 
     @Override
-    public ResultSetFuture findData(Availability metric, long startTime, long endTime) {
+    public Observable<ResultSet> findData(Availability metric, long startTime, long endTime) {
         return delegate.findData(metric, startTime, endTime);
     }
 
     @Override
-    public ResultSetFuture findData(Availability metric, long startTime, long endTime, boolean includeWriteTime) {
+    public Observable<ResultSet> findData(Availability metric, long startTime, long endTime, boolean includeWriteTime) {
         return delegate.findData(metric, startTime, endTime, includeWriteTime);
     }
 
     @Override
-    public ResultSetFuture findData(Availability metric, long timestamp) {
+    public Observable<ResultSet> findData(Availability metric, long timestamp) {
         return delegate.findData(metric, timestamp);
     }
 

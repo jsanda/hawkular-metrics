@@ -32,7 +32,7 @@ import org.hawkular.metrics.core.api.MetricId;
 /**
  * @author John Sanda
  */
-public class TaggedAvailabilityMappper {
+public class TaggedAvailabilityMapper {
 
     public static Map<MetricId, Set<AvailabilityData>> apply(ResultSet resultSet) {
         Map<MetricId, Set<AvailabilityData>> taggedData = new HashMap<>();
