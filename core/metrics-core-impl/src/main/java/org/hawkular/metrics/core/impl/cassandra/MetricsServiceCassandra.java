@@ -16,8 +16,6 @@
  */
 package org.hawkular.metrics.core.impl.cassandra;
 
-import static java.util.Arrays.asList;
-
 import static org.joda.time.Hours.hours;
 
 import java.io.IOException;
@@ -37,12 +35,25 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.management.MBeanInfo;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
+
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.ResultSetFuture;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.RateLimiter;
 
 import org.hawkular.metrics.core.api.Availability;
 import org.hawkular.metrics.core.api.AvailabilityBucketDataPoint;
@@ -72,22 +83,6 @@ import org.joda.time.Duration;
 import org.joda.time.Hours;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
-import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.AsyncFunction;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.RateLimiter;
 
 import rx.Observable;
 
@@ -571,29 +566,26 @@ public class MetricsServiceCassandra implements MetricsService {
     }
 
     @Override
-    public Observable<Map<String, String>> getMetricTags(String tenantId, MetricType type, MetricId id) {
+    public Observable<Optional<Map<String, String>>> getMetricTags(String tenantId, MetricType type, MetricId id) {
         Observable<ResultSet> metricTags = dataAccess.getMetricTags(tenantId, type, id, Metric.DPART);
 
-        return metricTags.flatMap(Observable::from).take(1).map(row -> row.getMap(0, String.class, String.class))
-            .defaultIfEmpty(Collections.EMPTY_MAP);
+        return metricTags.flatMap(Observable::from).take(1).map(row -> Optional.of(row.getMap(0, String.class, String
+                .class)))
+            .defaultIfEmpty(Optional.empty());
     }
 
     // Adding/deleting metric tags currently involves writing to three tables - data,
     // metrics_idx, and metrics_tags_idx. It might make sense to refactor tag related
     // functionality into a separate class.
     @Override
-    public Observable<Void> addTags(Metric metric, Map<String, String> tags) {
-        Observable<ResultSet> addTags = dataAccess.addTags(metric, tags);
-        Observable<ResultSet> intoMetricsTagsIndex = dataAccess.insertIntoMetricsTagsIndex(metric, tags);
-
-        return addTags.mergeWith(intoMetricsTagsIndex).flatMap(results -> null);
+    public Observable<ResultSet> addTags(Metric metric, Map<String, String> tags) {
+        return dataAccess.addTags(metric, tags).mergeWith(dataAccess.insertIntoMetricsTagsIndex(metric, tags));
     }
 
-
     @Override
-    public Observable<Void> deleteTags(Metric metric, Map<String, String> tags) {
-        return dataAccess.deleteTags(metric, tags.keySet())
-            .mergeWith(dataAccess.deleteFromMetricsTagsIndex(metric, tags)).flatMap(results -> null);
+    public Observable<ResultSet> deleteTags(Metric metric, Map<String, String> tags) {
+        return dataAccess.deleteTags(metric, tags.keySet()).mergeWith(
+                dataAccess.deleteFromMetricsTagsIndex(metric, tags));
     }
 
     @Override
@@ -617,8 +609,23 @@ public class MetricsServiceCassandra implements MetricsService {
                         })
                         .map(Futures::allAsList)
                         .map(insertsFuture -> RxUtil.from(insertsFuture, metricsTasks))
-                        .subscribe(new VoidSubscriber<>(subscriber))
+                                         .subscribe(new VoidSubscriber<>(subscriber))
         );
+    }
+
+    public ListenableFuture<Void> addGaugeData(List<Gauge> metrics) {
+        List<ResultSetFuture> insertFutures = new ArrayList<>(metrics.size());
+        for (Gauge metric : metrics) {
+            if (metric.getData().isEmpty()) {
+                logger.warn("There is no data to insert for {}", metric);
+            } else {
+                int ttl = getTTL(metric);
+                insertFutures.add(dataAccess.insertData(metric, ttl));
+            }
+        }
+        insertFutures.add(dataAccess.updateMetricsIndex(metrics));
+        ListenableFuture<List<ResultSet>> insertsFuture = Futures.allAsList(insertFutures);
+        return Futures.transform(insertsFuture, Functions.TO_VOID, metricsTasks);
     }
 
     @Override
@@ -783,7 +790,7 @@ public class MetricsServiceCassandra implements MetricsService {
         Observable<ResultSet> tagsInsert = gauges
                 .flatMap(g -> dataAccess.updateDataWithTag(metric, g, tags));
 
-        return tagInsert.mergeWith(tagsInsert);
+        return tagInsert.concatWith(tagsInsert);
     }
 
     private Observable<ResultSet> tagAvailabilityData(Observable<ResultSet> findDataObservable, Map<String, String>
@@ -799,11 +806,9 @@ public class MetricsServiceCassandra implements MetricsService {
                 .cache();
 
         Observable<ResultSet> tagInsert = tagsObservable
-                .doOnNext(t -> logger.info("inserting " + t))
                 .flatMap(t -> dataAccess.insertAvailabilityTag(t.getKey(), t.getValue(), metric, availabilities));
 
         Observable<ResultSet> tagsInsert = availabilities
-                .doOnNext(a -> logger.info("availabilities: " + a))
                 .flatMap(a -> dataAccess.updateDataWithTag(metric, a, tags));
 
         return tagInsert.mergeWith(tagsInsert);
@@ -853,24 +858,24 @@ public class MetricsServiceCassandra implements MetricsService {
     }
 
     @Override
-    public Observable<Map<MetricId, Set<GaugeData>>> findGaugeDataByTags(String tenantId,
-                                                                         Map<String, String> tags) {
+    public Observable<Map<MetricId, Set<GaugeData>>> findGaugeDataByTags(String tenantId, Map<String, String> tags) {
         MergeTagsFunction f = new MergeTagsFunction();
 
         return Observable.from(tags.entrySet())
                 .flatMap(e -> dataAccess.findGaugeDataByTag(tenantId, e.getKey(), e.getValue()))
-                .map(r -> TaggedGaugeDataMapper.apply(r))
+                .map(TaggedGaugeDataMapper::apply)
                 .toList()
                 .map(r -> f.apply(r));
     }
 
     @Override
     public Observable<Map<MetricId, Set<AvailabilityData>>> findAvailabilityByTags(String tenantId,
-                                                                                   Map<String, String> tags) {
+        Map<String, String> tags) {
         MergeTagsFunction f = new MergeTagsFunction();
+
         return Observable.from(tags.entrySet())
                 .flatMap(e -> dataAccess.findAvailabilityByTag(tenantId, e.getKey(), e.getValue()))
-                .map(r -> TaggedAvailabilityMappper.apply(r))
+                .map(TaggedAvailabilityMappper::apply)
                 .toList()
                 .map(r -> f.apply(r));
     }

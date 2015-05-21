@@ -78,11 +78,11 @@ public interface MetricsService {
 
     Observable<Metric<?>> findMetrics(String tenantId, MetricType type);
 
-    Observable<Map<String, String>> getMetricTags(String tenantId, MetricType type, MetricId id);
+    Observable<Optional<Map<String, String>>> getMetricTags(String tenantId, MetricType type, MetricId id);
 
-    Observable<Void> addTags(Metric metric, Map<String, String> tags);
+    Observable<ResultSet> addTags(Metric metric, Map<String, String> tags);
 
-    Observable<Void> deleteTags(Metric metric, Map<String, String> tags);
+    Observable<ResultSet> deleteTags(Metric metric, Map<String, String> tags);
 
     Observable<Void> addGaugeData(Observable<Gauge> gaugeObservable);
 

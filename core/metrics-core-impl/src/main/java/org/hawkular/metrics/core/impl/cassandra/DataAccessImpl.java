@@ -26,6 +26,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
+import com.datastax.driver.core.BatchStatement;
+import com.datastax.driver.core.BoundStatement;
+import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.KeyspaceMetadata;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.ResultSetFuture;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TupleType;
+import com.datastax.driver.core.TupleValue;
+import com.datastax.driver.core.UDTValue;
+import com.datastax.driver.core.UserType;
+import com.datastax.driver.core.utils.UUIDs;
+
 import org.hawkular.metrics.core.api.AggregationTemplate;
 import org.hawkular.metrics.core.api.Availability;
 import org.hawkular.metrics.core.api.AvailabilityData;
@@ -44,24 +58,7 @@ import org.hawkular.metrics.core.api.TimeUUIDUtils;
 import org.hawkular.rx.cassandra.driver.RxSession;
 import org.hawkular.rx.cassandra.driver.RxSessionImpl;
 
-import com.datastax.driver.core.BatchStatement;
-import com.datastax.driver.core.BoundStatement;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.KeyspaceMetadata;
-import com.datastax.driver.core.PreparedStatement;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.TupleType;
-import com.datastax.driver.core.TupleValue;
-import com.datastax.driver.core.UDTValue;
-import com.datastax.driver.core.UserType;
-import com.datastax.driver.core.utils.UUIDs;
-
 import rx.Observable;
-import rx.Observer;
-import rx.functions.Action0;
-import rx.functions.Func1;
 
 /**
  *
@@ -547,10 +544,11 @@ public class DataAccessImpl implements DataAccess {
     public Observable<ResultSet> insertGaugeTag(String tag, String tagValue, Gauge metric,
                                                 Observable<GaugeData> data) {
         BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
-        data.map(d ->
+        data.forEach(d ->
             batchStatement.add(insertGaugeTags.bind(metric.getTenantId(), tag, tagValue,
                     MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
                     d.getTimeUUID(), d.getValue(), d.getTTL())));
+        System.out.println("BatchStatement: " + batchStatement.toString());
         return rxSession.execute(batchStatement);
     }
 
@@ -559,15 +557,16 @@ public class DataAccessImpl implements DataAccess {
                                                        Observable<AvailabilityData> data) {
         BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
 
-        data.map(a -> batchStatement.add(insertAvailabilityTags.bind(metric.getTenantId(), tag, tagValue,
-                                                                     MetricType.AVAILABILITY.getCode(), metric.getId().getName(),
-                                                                     metric.getId().getInterval().toString(), a.getTimeUUID(), a.getBytes(), a.getTTL())));
+        data.forEach(a -> batchStatement.add(insertAvailabilityTags.bind(metric.getTenantId(), tag, tagValue,
+            MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
+            a.getTimeUUID(), a.getBytes(), a.getTTL())));
 
         return rxSession.execute(batchStatement);
     }
 
     @Override
     public Observable<ResultSet> updateDataWithTag(Metric<?> metric, MetricData data, Map<String, String> tags) {
+        System.out.println("UpdateDataWithTag: " + metric.getId());
         return rxSession.execute(updateDataWithTags.bind(tags, metric.getTenantId(), metric.getType().getCode(), metric
             .getId().getName(), metric.getId().getInterval().toString(), metric.getDpart(), data.getTimeUUID()));
     }

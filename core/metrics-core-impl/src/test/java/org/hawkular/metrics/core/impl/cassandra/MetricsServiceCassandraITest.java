@@ -35,8 +35,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +43,17 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.datastax.driver.core.BatchStatement;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.ResultSetFuture;
+import com.datastax.driver.core.Row;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import org.hawkular.metrics.core.api.Availability;
 import org.hawkular.metrics.core.api.AvailabilityData;
@@ -63,20 +73,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.datastax.driver.core.BatchStatement;
-import com.datastax.driver.core.PreparedStatement;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.ResultSetFuture;
-import com.datastax.driver.core.Row;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-
 import rx.Observable;
-import rx.Observer;
-import rx.observables.BlockingObservable;
 
 /**
  * @author John Sanda
@@ -670,23 +667,38 @@ public class MetricsServiceCassandraITest extends MetricsITest {
         m3.addData(d8);
         m3.addData(d9);
 
-        metricsService.addGaugeData(Observable.just(m1, m2, m3)).toBlocking().lastOrDefault(null);
+//        metricsService.addGaugeData(Observable.just(m1, m2, m3)).toBlocking().lastOrDefault(null);
+
+        ListenableFuture<Void> voidListenableFuture = metricsService.addGaugeData(ImmutableList.of(m1, m2, m3));
+        getUninterruptibly(voidListenableFuture);
 
         Map<String, String> tags1 = ImmutableMap.of("t1", "1");
         Map<String, String> tags2 = ImmutableMap.of("t2", "2");
 
-        metricsService.tagGaugeData(m1, tags1, start.getMillis(), start.plusMinutes(6).getMillis()).toBlocking();
-        metricsService.tagGaugeData(m2, tags1, start.getMillis(), start.plusMinutes(6).getMillis()).toBlocking();
+        System.out.println("Asking for data:");
+        metricsService.tagGaugeData(m1, tags1, start.getMillis(), start.plusMinutes(6).getMillis()).toBlocking()
+                .lastOrDefault(null);
+        metricsService.tagGaugeData(m2, tags1, start.getMillis(), start.plusMinutes(6).getMillis()).toBlocking()
+                .lastOrDefault(null);
         metricsService.tagGaugeData(m1, tags2, start.plusMinutes(4).getMillis(), start.plusMinutes(8).getMillis())
-        .toBlocking();
+        .toBlocking().lastOrDefault(null);
         metricsService.tagGaugeData(m2, tags2, start.plusMinutes(4).getMillis(), start.plusMinutes(8).getMillis())
-        .toBlocking();
+        .toBlocking().lastOrDefault(null);
         metricsService.tagGaugeData(m3, tags2, start.plusMinutes(4).getMillis(), start.plusMinutes(8).getMillis())
-        .toBlocking();
+        .toBlocking().lastOrDefault(null);
 
 //        ListenableFuture<Map<MetricId, Set<GaugeData>>> queryFuture =
-        Map<MetricId, Set<GaugeData>> actual = metricsService.findGaugeDataByTags(tenant, ImmutableMap.of("t1", "1",
-                                                                        "t2", "2")).toBlocking().first();
+
+        Iterator<Map<MetricId, Set<GaugeData>>> iterator = metricsService
+            .findGaugeDataByTags(tenant, ImmutableMap.of("t1", "1", "t2", "2")).toBlocking().getIterator();
+        while(iterator.hasNext()) {
+            System.out.println("We have next: " + iterator.next());
+        }
+        System.out.println("Got data");
+
+        Map<MetricId, Set<GaugeData>> actual = metricsService
+            .findGaugeDataByTags(tenant, ImmutableMap.of("t1", "1", "t2", "2")).toBlocking().toIterable().iterator()
+            .next();
         ImmutableMap<MetricId, ImmutableSet<GaugeData>> expected = ImmutableMap.of(
             new MetricId("m1"), ImmutableSet.of(d1, d2, d6),
             new MetricId("m2"), ImmutableSet.of(d5, d3)
