@@ -541,7 +541,7 @@ public class DataAccessImpl implements DataAccess {
     @Override
     public Observable<ResultSet> insertGaugeTag(String tag, String tagValue, Gauge metric,
                                                 Observable<GaugeData> data) {
-        return data.reduce(new BatchStatement(BatchStatement.Type.UNLOGGED), (BatchStatement batch, GaugeData d) -> {
+        return data.reduce(new BatchStatement(BatchStatement.Type.UNLOGGED), (batch, d) -> {
             batch.add(insertGaugeTags.bind(metric.getTenantId(), tag, tagValue,
                     MetricType.GAUGE.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
                     d.getTimeUUID(), d.getValue(), d.getTTL()));
@@ -552,13 +552,12 @@ public class DataAccessImpl implements DataAccess {
     @Override
     public Observable<ResultSet> insertAvailabilityTag(String tag, String tagValue, Availability metric,
                                                        Observable<AvailabilityData> data) {
-        BatchStatement batchStatement = new BatchStatement(BatchStatement.Type.UNLOGGED);
-
-        data.forEach(a -> batchStatement.add(insertAvailabilityTags.bind(metric.getTenantId(), tag, tagValue,
-            MetricType.AVAILABILITY.getCode(), metric.getId().getName(), metric.getId().getInterval().toString(),
-            a.getTimeUUID(), a.getBytes(), a.getTTL())));
-
-        return rxSession.execute(batchStatement);
+        return data.reduce(new BatchStatement(BatchStatement.Type.UNLOGGED), (batch, a) -> {
+            batch.add(insertAvailabilityTags.bind(metric.getTenantId(), tag, tagValue,
+                    MetricType.AVAILABILITY.getCode(), metric.getId().getName(),
+                    metric.getId().getInterval().toString(), a.getTimeUUID(), a.getBytes(), a.getTTL()));
+            return batch;
+        }).flatMap(rxSession::execute);
     }
 
     @Override
