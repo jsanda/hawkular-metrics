@@ -161,7 +161,7 @@ public class DataAccessImpl implements DataAccess {
         deleteTenantsBucket = session.prepare("DELETE FROM tenants_by_time WHERE bucket = ?");
 
         findMetric = session.prepare(
-            "SELECT metric, tags, data_retention " +
+            "SELECT metric, tags, data_retention, bucket_size " +
             "FROM metrics_idx " +
             "WHERE tenant_id = ? AND type = ? AND metric = ?");
 
@@ -171,8 +171,8 @@ public class DataAccessImpl implements DataAccess {
             "WHERE tenant_id = ? AND type = ? AND metric = ?");
 
        insertIntoMetricsIndex = session.prepare(
-            "INSERT INTO metrics_idx (tenant_id, type, metric, data_retention, tags) " +
-            "VALUES (?, ?, ?, ?, ?) " +
+            "INSERT INTO metrics_idx (tenant_id, type, metric, data_retention, bucket_size, tags) " +
+            "VALUES (?, ?, ?, ?, ?, ?) " +
             "IF NOT EXISTS");
 
         updateMetricsIndex = session.prepare(
@@ -189,7 +189,7 @@ public class DataAccessImpl implements DataAccess {
             "WHERE tenant_id = ? AND type = ? AND metric = ?");
 
         readMetricsIndex = session.prepare(
-            "SELECT metric, tags, data_retention " +
+            "SELECT metric, tags, data_retention, bucket_size " +
             "FROM metrics_idx " +
             "WHERE tenant_id = ? AND type = ?");
 
@@ -322,7 +322,7 @@ public class DataAccessImpl implements DataAccess {
     public <T> ResultSetFuture insertMetricInMetricsIndex(Metric<T> metric) {
         MetricId<T> metricId = metric.getId();
         return session.executeAsync(insertIntoMetricsIndex.bind(metricId.getTenantId(), metricId.getType().getCode(),
-                metricId.getName(), metric.getDataRetention(), metric.getTags()));
+                metricId.getName(), metric.getDataRetention(), metric.getBucketSize(), metric.getTags()));
     }
 
     @Override

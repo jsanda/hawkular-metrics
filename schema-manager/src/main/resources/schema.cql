@@ -112,6 +112,7 @@ CREATE TABLE ${keyspace}.metrics_idx (
     metric text,
     tags map<text, text>,
     data_retention int,
+    bucket_size int,
     PRIMARY KEY ((tenant_id, type), metric)
 ) WITH compaction = { 'class': 'LeveledCompactionStrategy' };
 
