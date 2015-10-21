@@ -41,21 +41,18 @@ public class Functions {
 
     private enum GAUGE_COLS {
         TIME,
-        DATA_RETENTION,
         VALUE,
         WRITE_TIME
     }
 
     private enum COUNTER_COLS {
         TIME,
-        DATA_RETENTION,
         VALUE,
         WRITE_TIME
     }
 
     private enum AVAILABILITY_COLS {
         TIME,
-        DATA_RETENTION,
         AVAILABILITY,
         WRITE_TIME
     }
