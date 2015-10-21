@@ -85,7 +85,6 @@ CREATE TABLE ${keyspace}.data (
     metric text,
     dpart bigint,
     time timeuuid,
-    data_retention int static,
     n_value double,
     availability blob,
     l_value bigint,

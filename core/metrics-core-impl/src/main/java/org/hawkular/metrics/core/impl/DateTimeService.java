@@ -16,6 +16,8 @@
  */
 package org.hawkular.metrics.core.impl;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.function.Supplier;
 
 import org.joda.time.DateTime;
@@ -30,6 +32,7 @@ import org.joda.time.Period;
 public class DateTimeService {
 
     public Supplier<DateTime> now = DateTime::now;
+    public static final Duration DEFAULT_SLICE = Duration.standardDays(1); // Correct place?
 
     /**
      * @return A DateTime object rounded down to the start of the current hour. For example, if the current time is
@@ -85,5 +88,27 @@ public class DateTimeService {
         return dt.millisOfSecond().roundCeilingCopy().minusMillis(dt.getMillisOfSecond() % p.getMillis());
     }
 
+    // DPART assisting methods
+    public long getCurrentDpart(long timestamp, Duration slice) {
+        DateTime time = new DateTime(timestamp);
+        // Default or from the metric definition / tenant definition.. lets go with default slice for this now
+        DateTime timeSlice = getTimeSlice(time, slice);
+        return timeSlice.getMillis();
+    }
+
+    public long[] getDparts(long from, long to, Duration interval) {
+        DateTime start = new DateTime(from);
+        DateTime end = new DateTime(to);
+
+        List<DateTime> slices = new LinkedList<>();
+        // Default timeslice.. so that's the interval
+        DateTime startSlice = getTimeSlice(start, interval);
+        while(startSlice.isBefore(end.getMillis())) {
+            slices.add(getTimeSlice(startSlice, interval));
+            startSlice = startSlice.plus(interval);
+        }
+
+        return slices.stream().mapToLong(DateTime::getMillis).toArray();
+    }
 
 }

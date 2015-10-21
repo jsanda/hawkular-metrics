@@ -53,8 +53,6 @@ public interface DataAccess {
 
     <T> Observable<ResultSet> findMetric(MetricId<T> id);
 
-    <T> Observable<ResultSet> addDataRetention(Metric<T> metric);
-
     <T> Observable<ResultSet> getMetricTags(MetricId<T> id);
 
     <T> Observable<ResultSet> addTags(Metric<T> metric, Map<String, String> tags);
@@ -65,9 +63,9 @@ public interface DataAccess {
 
     <T> Observable<ResultSet> findMetricsInMetricsIndex(String tenantId, MetricType<T> type);
 
-    Observable<Integer> insertGaugeData(Metric<Double> metric, int ttl);
+    Observable<Integer> insertGaugeData(Metric<Double> metric);
 
-    Observable<Integer> insertCounterData(Metric<Long> counter, int ttl);
+    Observable<Integer> insertCounterData(Metric<Long> counter);
 
     Observable<ResultSet> findCounterData(MetricId<Long> id, long startTime, long endTime);
 
@@ -91,7 +89,7 @@ public interface DataAccess {
 
     Observable<ResultSet> findAllGaugeMetrics();
 
-    Observable<Integer> insertAvailabilityData(Metric<AvailabilityType> metric, int ttl);
+    Observable<Integer> insertAvailabilityData(Metric<AvailabilityType> metric);
 
     Observable<ResultSet> findAvailabilityData(MetricId<AvailabilityType> id, long startTime, long endTime);
 
