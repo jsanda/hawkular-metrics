@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright 2014-2015 Red Hat, Inc. and/or its affiliates
+    and other contributors as indicated by the @author tags.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.hawkular.metrics</groupId>
+    <artifactId>hawkular-metrics-parent</artifactId>
+    <version>0.9.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>hawkular-metrics-dist-itests</artifactId>
+  <name>Hawkular Metrics distribution integration tests</name>
+
+  <properties>
+    <wildfly.dist.zip.root.dir>wildfly-${version.org.wildfly}</wildfly.dist.zip.root.dir>
+    <hawkular.dist.zip.root.dir>hawkular-${project.version}</hawkular.dist.zip.root.dir>
+    <wildfly-maven-plugin.skip>false</wildfly-maven-plugin.skip>
+    <component.wildfly.port.offset>3</component.wildfly.port.offset>
+    <!-- IMPORTANT: The port must be the port offset + 8080. -->
+    <base-uri>127.0.0.1:8083/hawkular/metrics</base-uri>
+    <!-- IMPORTANT: The management port must be the port offset + 9990. -->
+    <component.wildfly.management.port>9993</component.wildfly.management.port>
+    <wildfly.logging.console.level>ERROR</wildfly.logging.console.level>
+    <wildfly.logging.file.level>ERROR</wildfly.logging.file.level>
+    <cassandra.keyspace>hawkular_metrics_dist_integration_tests</cassandra.keyspace>
+  </properties>
+
+  <dependencies>
+<!--
+    <dependency>
+      <groupId>org.hawkular.metrics</groupId>
+      <artifactId>hawkular-metrics-dist</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+    </dependency>
+-->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-all</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.activemq</groupId>
+      <artifactId>artemis-jms-client</artifactId>
+      <version>1.1.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>commons-beanutils</groupId>
+      <artifactId>commons-beanutils</artifactId>
+      <version>1.9.2</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy.modules.http-builder</groupId>
+      <artifactId>http-builder</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.wildfly</groupId>
+      <artifactId>wildfly-jms-client-bom</artifactId>
+      <version>${version.org.wildfly}</version>
+      <type>pom</type>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <skipTests>true</skipTests>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/*ITest*</include>
+          </includes>
+          <systemPropertyVariables>
+            <keyspace>${cassandra.keyspace}</keyspace>
+            <hawkular-metrics.base-uri>${base-uri}</hawkular-metrics.base-uri>
+          </systemPropertyVariables>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.wildfly.plugins</groupId>
+        <artifactId>wildfly-maven-plugin</artifactId>
+        <configuration>
+          <groupId>org.hawkular.metrics</groupId>
+          <artifactId>hawkular-metrics-dist</artifactId>
+          <version>${project.version}</version>
+          <add-user>
+            <users>
+              <user>
+                <username>admin</username>
+                <password>redhat</password>
+                <groups>
+                  <group>guest</group>
+                </groups>
+                <application-user>true</application-user>
+              </user>
+            </users>
+          </add-user>
+        </configuration>
+        <executions>
+          <execution>
+            <id>start-wildfly</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>start</goal>
+            </goals>
+            <configuration>
+              <skip>${wildfly-maven-plugin.skip}</skip>
+              <port>${component.wildfly.management.port}</port>
+              <javaOpts>
+                <javaOpt>-Xms64m</javaOpt>
+                <javaOpt>-Xmx512m</javaOpt>
+                <javaOpt>-Xss256k</javaOpt>
+                <javaOpt>-Djava.net.preferIPv4Stack=true</javaOpt>
+                <javaOpt>-Dsun.rmi.dgc.client.gcInterval=3600000</javaOpt>
+                <javaOpt>-Dsun.rmi.dgc.server.gcInterval=3600000</javaOpt>
+                <javaOpt>-Djboss.socket.binding.port-offset=${component.wildfly.port.offset}</javaOpt>
+                <javaOpt>-Dcassandra.keyspace=${cassandra.keyspace}</javaOpt>
+                <javaOpt>-Dcassandra.resetdb</javaOpt>
+                <javaOpt>-Dhawkular.metrics.waitForService</javaOpt>
+                <javaOpt>-Xdebug</javaOpt>
+                <javaOpt>-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8787</javaOpt>
+              </javaOpts>
+            </configuration>
+          </execution>
+          <!--<execution>-->
+            <!--<id>configure-loggers</id>-->
+            <!--<phase>pre-integration-test</phase>-->
+            <!--<goals>-->
+              <!--<goal>execute-commands</goal>-->
+            <!--</goals>-->
+            <!--<configuration>-->
+              <!--<skip>${wildfly-maven-plugin.skip}</skip>-->
+              <!--<port>${component.wildfly.management.port}</port>-->
+              <!--<jbossHome>${project.build.directory}/wildfly-run/hawkular-${project.version}</jbossHome>-->
+              <!--<executeCommands>-->
+                <!--<commands>-->
+                  <!--&lt;!&ndash; In the Nest, org.hawkular logger is already defined, we only need to set the level &ndash;&gt;-->
+                  <!--<command>-->
+                    <!--/subsystem=logging/logger=org.hawkular:write-attribute(name="level",value="TRACE")-->
+                  <!--</command>-->
+                  <!--<command>-->
+                    <!--/subsystem=logging/console-handler=CONSOLE:write-attribute(name="level",value="${wildfly.logging.console.level}")-->
+                  <!--</command>-->
+                  <!--<command>-->
+                    <!--/subsystem=logging/periodic-rotating-file-handler=FILE:write-attribute(name="level",value="${wildfly.logging.file.level}")-->
+                  <!--</command>-->
+                  <!--<commmand>-->
+                    <!--/subsystem=logging/periodic-rotating-file-handler=FILE:write-attribute(name="file",value={path="${project.build.directory}/wildfly-test.log"})-->
+                  <!--</commmand>-->
+                <!--</commands>-->
+              <!--</executeCommands>-->
+            <!--</configuration>-->
+          <!--</execution>-->
+          <!--<execution>-->
+            <!--<id>deploy-webapp</id>-->
+            <!--<phase>pre-integration-test</phase>-->
+            <!--<goals>-->
+              <!--<goal>deploy-only</goal>-->
+            <!--</goals>-->
+            <!--<configuration>-->
+              <!--<skip>${wildfly-maven-plugin.skip}</skip>-->
+              <!--<port>${component.wildfly.management.port}</port>-->
+            <!--</configuration>-->
+          <!--</execution>-->
+          <!--<execution>-->
+            <!--<id>stop-wildfly</id>-->
+            <!--<phase>post-integration-test</phase>-->
+            <!--<goals>-->
+              <!--<goal>shutdown</goal>-->
+            <!--</goals>-->
+            <!--<configuration>-->
+              <!--<skip>${wildfly-maven-plugin.skip}</skip>-->
+              <!--<port>${component.wildfly.management.port}</port>-->
+            <!--</configuration>-->
+          <!--</execution>-->
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

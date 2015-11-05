@@ -64,7 +64,7 @@
       <groupId>org.hawkular.bus</groupId>
       <artifactId>hawkular-bus-common</artifactId>
       <version>${version.org.hawkular.bus}</version>
-      <scope>provided</scope>
+      <scope>test</scope>
       <exclusions>
         <exclusion>
           <groupId>org.apache.activemq</groupId>
@@ -81,7 +81,7 @@
       <groupId>org.apache.activemq</groupId>
       <artifactId>activemq-client</artifactId>
       <version>${version.org.apache.activemq}</version>
-      <scope>provided</scope>
+      <scope>test</scope>
     </dependency>
     <!-- Wildfly provided -->
     <!-- No need to set the jboss-logging scope here since Wildfly BOM includes jboss-logging -->
@@ -98,10 +98,12 @@
     <dependency>
       <groupId>org.jboss.spec.javax.jms</groupId>
       <artifactId>jboss-jms-api_2.0_spec</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.jboss.spec.javax.enterprise.concurrent</groupId>
       <artifactId>jboss-concurrency-api_1.0_spec</artifactId>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>javax.enterprise</groupId>

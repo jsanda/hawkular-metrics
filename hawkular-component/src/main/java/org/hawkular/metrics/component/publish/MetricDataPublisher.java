@@ -19,27 +19,28 @@ package org.hawkular.metrics.component.publish;
 
 import static java.util.stream.Collectors.toList;
 
-import static org.hawkular.bus.common.Endpoint.Type.TOPIC;
-
-import java.io.IOException;
 import java.util.List;
 
 import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
-import javax.jms.JMSException;
-import javax.jms.TopicConnectionFactory;
+import javax.jms.ConnectionFactory;
+import javax.jms.JMSContext;
+import javax.jms.JMSProducer;
+import javax.jms.TextMessage;
+import javax.jms.Topic;
 
-import org.hawkular.bus.common.BasicMessage;
-import org.hawkular.bus.common.ConnectionContextFactory;
-import org.hawkular.bus.common.Endpoint;
-import org.hawkular.bus.common.MessageProcessor;
-import org.hawkular.bus.common.producer.ProducerConnectionContext;
+import org.hawkular.metrics.api.jaxrs.model.Gauge;
+import org.hawkular.metrics.api.jaxrs.model.GaugeDataPoint;
 import org.hawkular.metrics.api.jaxrs.util.Eager;
 import org.hawkular.metrics.core.api.Metric;
-import org.hawkular.metrics.core.api.MetricId;
 import org.jboss.logging.Logger;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 /**
  * Publishes {@link MetricDataMessage} messages on the Hawkular bus.
@@ -53,61 +54,92 @@ public class MetricDataPublisher {
 
     static final String HAWULAR_METRIC_DATA_TOPIC = "HawkularMetricData";
 
-    @Resource(mappedName = "java:/HawkularBusConnectionFactory")
-    TopicConnectionFactory topicConnectionFactory;
+    @Resource(name = "java:/ConnectionFactory")
+    private ConnectionFactory connectionFactory;
 
-    private MessageProcessor messageProcessor;
-    private ConnectionContextFactory connectionContextFactory;
-    private ProducerConnectionContext producerConnectionContext;
+    @Resource(mappedName = "java:/jms/topic/HawkularMetricData")
+    private Topic gaugeTopic;
+
+    private ObjectMapper mapper;
+
+
+//    @Resource(mappedName = "java:/HawkularBusConnectionFactory")
+//    TopicConnectionFactory topicConnectionFactory;
+
+//    private MessageProcessor messageProcessor;
+//    private ConnectionContextFactory connectionContextFactory;
+//    private ProducerConnectionContext producerConnectionContext;
 
     @PostConstruct
     void init() {
-        messageProcessor = new MessageProcessor();
-        try {
-            connectionContextFactory = new ConnectionContextFactory(topicConnectionFactory);
-            Endpoint endpoint = new Endpoint(TOPIC, HAWULAR_METRIC_DATA_TOPIC);
-            producerConnectionContext = connectionContextFactory.createProducerConnectionContext(endpoint);
-        } catch (JMSException e) {
-            throw new RuntimeException(e);
+//        messageProcessor = new MessageProcessor();
+//        try {
+//            connectionContextFactory = new ConnectionContextFactory(topicConnectionFactory);
+//            Endpoint endpoint = new Endpoint(TOPIC, HAWULAR_METRIC_DATA_TOPIC);
+//            producerConnectionContext = connectionContextFactory.createProducerConnectionContext(endpoint);
+//        } catch (JMSException e) {
+//            throw new RuntimeException(e);
+//        }
+        mapper = new ObjectMapper();
+        mapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+        mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
+        mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
+    }
+
+    public void publish(Metric<Double> metric) {
+        try (JMSContext context = connectionFactory.createContext()) {
+            List<GaugeDataPoint> dataPoints = metric.getDataPoints().stream().map(GaugeDataPoint::new)
+                    .collect(toList());
+            Gauge gauge = new Gauge(metric.getId().getName(), dataPoints);
+            String json = mapper.writeValueAsString(gauge);
+
+            TextMessage message = context.createTextMessage(json);
+            JMSProducer producer = context.createProducer();
+            producer.send(gaugeTopic, message);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to generate JSON", e);
         }
     }
 
-    public void publish(Metric<? extends Number> metric) {
-        BasicMessage basicMessage = createNumericMessage(metric);
-        try {
-            messageProcessor.send(producerConnectionContext, basicMessage);
-            log.tracef("Sent message: %s", basicMessage);
-        } catch (JMSException e) {
-            log.warnf(e, "Could not send metric: %s", metric);
-        }
-    }
+//    public void publish(Metric<? extends Number> metric) {
+//        BasicMessage basicMessage = createNumericMessage(metric);
+//        try {
+//            messageProcessor.send(producerConnectionContext, basicMessage);
+//            log.tracef("Sent message: %s", basicMessage);
+//        } catch (JMSException e) {
+//            log.warnf(e, "Could not send metric: %s", metric);
+//        }
+//    }
+//
+//    private BasicMessage createNumericMessage(Metric<? extends Number> numeric) {
+//        MetricId<? extends Number> numericId = numeric.getId();
+//        List<MetricDataMessage.SingleMetric> numericList = numeric.getDataPoints().stream()
+//                .map(dataPoint -> new MetricDataMessage.SingleMetric(numericId.getName(), dataPoint.getTimestamp(),
+//                        dataPoint.getValue().doubleValue()))
+//                .collect(toList());
+//        MetricDataMessage.MetricData metricData = new MetricDataMessage.MetricData();
+//        metricData.setTenantId(numericId.getTenantId());
+//        metricData.setData(numericList);
+//        return new MetricDataMessage(metricData);
+//
+//    }
 
-    private BasicMessage createNumericMessage(Metric<? extends Number> numeric) {
-        MetricId<? extends Number> numericId = numeric.getId();
-        List<MetricDataMessage.SingleMetric> numericList = numeric.getDataPoints().stream()
-                .map(dataPoint -> new MetricDataMessage.SingleMetric(numericId.getName(), dataPoint.getTimestamp(),
-                        dataPoint.getValue().doubleValue()))
-                .collect(toList());
-        MetricDataMessage.MetricData metricData = new MetricDataMessage.MetricData();
-        metricData.setTenantId(numericId.getTenantId());
-        metricData.setData(numericList);
-        return new MetricDataMessage(metricData);
-
-    }
-
-    @PreDestroy
-    void shutdown() {
-        if (producerConnectionContext != null) {
-            try {
-                producerConnectionContext.close();
-            } catch (IOException ignored) {
-            }
-        }
-        if (connectionContextFactory != null) {
-            try {
-                connectionContextFactory.close();
-            } catch (JMSException ignored) {
-            }
-        }
-    }
+//    @PreDestroy
+//    void shutdown() {
+//        if (producerConnectionContext != null) {
+//            try {
+//                producerConnectionContext.close();
+//            } catch (IOException ignored) {
+//            }
+//        }
+//        if (connectionContextFactory != null) {
+//            try {
+//                connectionContextFactory.close();
+//            } catch (JMSException ignored) {
+//            }
+//        }
+//    }
 }

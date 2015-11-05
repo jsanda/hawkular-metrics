@@ -20,8 +20,6 @@ package org.hawkular.metrics.component.publish;
 
 import java.util.List;
 
-import org.hawkular.bus.common.AbstractMessage;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
@@ -31,7 +29,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @author Lucas Ponce
  */
 
-public class MetricDataMessage extends AbstractMessage {
+public class MetricDataMessage {
 
     // the basic message body - it will be exposed to the JSON output
     @JsonInclude

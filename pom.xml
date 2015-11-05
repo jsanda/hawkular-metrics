@@ -390,7 +390,6 @@
         <version>${version.maven-surefire-report-plugin}</version>
       </plugin>
       <plugin>
-        <!-- must be last plugin in the list -->
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>dashboard-maven-plugin</artifactId>
         <version>${version.org.codehaus.mojo.dashboard-maven-plugin}</version>
@@ -420,6 +419,8 @@
         <module>api/metrics-api-jaxrs-1.1</module>
         <module>hawkular-component</module>
         <module>integration-tests</module>
+        <module>dist</module>
+        <module>dist-itests</module>
         <module>clients</module>
         <module>containers</module>
       </modules>

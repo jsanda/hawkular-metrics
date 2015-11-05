@@ -17,30 +17,11 @@
 
 package org.hawkular.metrics.component.publish;
 
-import static java.util.stream.Collectors.toList;
-
-import static org.hawkular.bus.common.Endpoint.Type.TOPIC;
-
-import java.io.IOException;
-import java.util.List;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
-import javax.jms.JMSException;
-import javax.jms.TopicConnectionFactory;
 
-import org.hawkular.bus.common.BasicMessage;
-import org.hawkular.bus.common.ConnectionContextFactory;
-import org.hawkular.bus.common.Endpoint;
-import org.hawkular.bus.common.MessageProcessor;
-import org.hawkular.bus.common.producer.ProducerConnectionContext;
 import org.hawkular.metrics.api.jaxrs.util.Eager;
 import org.hawkular.metrics.core.api.AvailabilityType;
 import org.hawkular.metrics.core.api.Metric;
-import org.hawkular.metrics.core.api.MetricId;
-import org.jboss.logging.Logger;
 
 /**
  * Publishes {@link AvailDataMessage} messages on the Hawkular bus.
@@ -50,64 +31,64 @@ import org.jboss.logging.Logger;
 @ApplicationScoped
 @Eager
 public class AvailDataPublisher {
-    private static final Logger log = Logger.getLogger(AvailDataPublisher.class);
-
-    static final String HAWULAR_AVAIL_DATA_TOPIC = "HawkularAvailData";
-
-    @Resource(mappedName = "java:/HawkularBusConnectionFactory")
-    TopicConnectionFactory topicConnectionFactory;
-
-    private MessageProcessor messageProcessor;
-    private ConnectionContextFactory connectionContextFactory;
-    private ProducerConnectionContext producerConnectionContext;
-
-    @PostConstruct
-    void init() {
-        messageProcessor = new MessageProcessor();
-        try {
-            connectionContextFactory = new ConnectionContextFactory(topicConnectionFactory);
-            Endpoint endpoint = new Endpoint(TOPIC, HAWULAR_AVAIL_DATA_TOPIC);
-            producerConnectionContext = connectionContextFactory.createProducerConnectionContext(endpoint);
-        } catch (JMSException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    private static final Logger log = Logger.getLogger(AvailDataPublisher.class);
+//
+//    static final String HAWULAR_AVAIL_DATA_TOPIC = "HawkularAvailData";
+//
+//    @Resource(mappedName = "java:/HawkularBusConnectionFactory")
+//    TopicConnectionFactory topicConnectionFactory;
+//
+//    private MessageProcessor messageProcessor;
+//    private ConnectionContextFactory connectionContextFactory;
+//    private ProducerConnectionContext producerConnectionContext;
+//
+//    @PostConstruct
+//    void init() {
+//        messageProcessor = new MessageProcessor();
+//        try {
+//            connectionContextFactory = new ConnectionContextFactory(topicConnectionFactory);
+//            Endpoint endpoint = new Endpoint(TOPIC, HAWULAR_AVAIL_DATA_TOPIC);
+//            producerConnectionContext = connectionContextFactory.createProducerConnectionContext(endpoint);
+//        } catch (JMSException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     public void publish(Metric<AvailabilityType> metric) {
-        BasicMessage basicMessage = createAvailMessage(metric);
-        try {
-            messageProcessor.send(producerConnectionContext, basicMessage);
-            log.tracef("Sent message: %s", basicMessage);
-        } catch (JMSException e) {
-            log.warnf(e, "Could not send metric: %s", metric);
-        }
+//        BasicMessage basicMessage = createAvailMessage(metric);
+//        try {
+//            messageProcessor.send(producerConnectionContext, basicMessage);
+//            log.tracef("Sent message: %s", basicMessage);
+//        } catch (JMSException e) {
+//            log.warnf(e, "Could not send metric: %s", metric);
+//        }
     }
 
-    private BasicMessage createAvailMessage(Metric<AvailabilityType> avail) {
-        MetricId<AvailabilityType> availId = avail.getId();
-        List<AvailDataMessage.SingleAvail> availList = avail.getDataPoints().stream()
-                .map(dataPoint -> new AvailDataMessage.SingleAvail(availId.getTenantId(), availId.getName(),
-                        dataPoint.getTimestamp(),
-                        dataPoint.getValue().getText().toUpperCase()))
-                .collect(toList());
-        AvailDataMessage.AvailData metricData = new AvailDataMessage.AvailData();
-        metricData.setData(availList);
-        return new AvailDataMessage(metricData);
-    }
-
-    @PreDestroy
-    void shutdown() {
-        if (producerConnectionContext != null) {
-            try {
-                producerConnectionContext.close();
-            } catch (IOException ignored) {
-            }
-        }
-        if (connectionContextFactory != null) {
-            try {
-                connectionContextFactory.close();
-            } catch (JMSException ignored) {
-            }
-        }
-    }
+//    private BasicMessage createAvailMessage(Metric<AvailabilityType> avail) {
+//        MetricId<AvailabilityType> availId = avail.getId();
+//        List<AvailDataMessage.SingleAvail> availList = avail.getDataPoints().stream()
+//                .map(dataPoint -> new AvailDataMessage.SingleAvail(availId.getTenantId(), availId.getName(),
+//                        dataPoint.getTimestamp(),
+//                        dataPoint.getValue().getText().toUpperCase()))
+//                .collect(toList());
+//        AvailDataMessage.AvailData metricData = new AvailDataMessage.AvailData();
+//        metricData.setData(availList);
+//        return new AvailDataMessage(metricData);
+//    }
+//
+//    @PreDestroy
+//    void shutdown() {
+//        if (producerConnectionContext != null) {
+//            try {
+//                producerConnectionContext.close();
+//            } catch (IOException ignored) {
+//            }
+//        }
+//        if (connectionContextFactory != null) {
+//            try {
+//                connectionContextFactory.close();
+//            } catch (JMSException ignored) {
+//            }
+//        }
+//    }
 }

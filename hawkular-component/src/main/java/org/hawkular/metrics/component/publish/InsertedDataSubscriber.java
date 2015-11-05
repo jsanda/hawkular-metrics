@@ -18,6 +18,7 @@
 package org.hawkular.metrics.component.publish;
 
 import static org.hawkular.metrics.core.api.MetricType.AVAILABILITY;
+import static org.hawkular.metrics.core.api.MetricType.GAUGE;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -71,9 +72,9 @@ public class InsertedDataSubscriber {
             @SuppressWarnings("unchecked")
             Metric<AvailabilityType> avail = (Metric<AvailabilityType>) metric;
             availDataPublisher.publish(avail);
-        } else {
+        } else if (metric.getId().getType() == GAUGE) {
             @SuppressWarnings("unchecked")
-            Metric<? extends Number> numeric = (Metric<? extends Number>) metric;
+            Metric<Double> numeric = (Metric<Double>) metric;
             metricDataPublisher.publish(numeric);
         }
     }
