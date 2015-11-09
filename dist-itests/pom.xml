@@ -36,7 +36,8 @@
     <wildfly-maven-plugin.skip>false</wildfly-maven-plugin.skip>
     <component.wildfly.port.offset>3</component.wildfly.port.offset>
     <!-- IMPORTANT: The port must be the port offset + 8080. -->
-    <base-uri>127.0.0.1:8083/hawkular/metrics</base-uri>
+    <hawkular.metrics.base-uri>127.0.0.1:8083/hawkular/metrics</hawkular.metrics.base-uri>
+    <hawkular.alerts.base-uri>127.0.0.1:8083/hawkular/alerts</hawkular.alerts.base-uri>
     <!-- IMPORTANT: The management port must be the port offset + 9990. -->
     <component.wildfly.management.port>9993</component.wildfly.management.port>
     <wildfly.logging.console.level>ERROR</wildfly.logging.console.level>
@@ -45,14 +46,12 @@
   </properties>
 
   <dependencies>
-<!--
     <dependency>
-      <groupId>org.hawkular.metrics</groupId>
-      <artifactId>hawkular-metrics-dist</artifactId>
-      <version>${project.version}</version>
-      <type>zip</type>
+      <groupId>org.hawkular.alerts</groupId>
+      <artifactId>hawkular-alerts-api</artifactId>
+      <version>0.6.0-SNAPSHOT</version>
+      <scope>test</scope>
     </dependency>
--->
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -92,6 +91,11 @@
       <type>pom</type>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -112,7 +116,8 @@
           </includes>
           <systemPropertyVariables>
             <keyspace>${cassandra.keyspace}</keyspace>
-            <hawkular-metrics.base-uri>${base-uri}</hawkular-metrics.base-uri>
+            <hawkular-metrics.base-uri>${hawkular.metrics.base-uri}</hawkular-metrics.base-uri>
+            <hawkular-alerts.base-uri>${hawkular.alerts.base-uri}</hawkular-alerts.base-uri>
           </systemPropertyVariables>
         </configuration>
         <executions>
