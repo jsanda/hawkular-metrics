@@ -79,8 +79,12 @@ ${entity}
     Trigger trigger = new Trigger("test-trigger-1", metric)
     trigger.enabled = true
     trigger.tags.metric = metric
+
     def resp = alertsClient.delete(path: "triggers/$trigger.id")
     assert(200 == resp.status || 404 == resp.status)
+
+    resp = alertsClient.put(path: 'delete', query: [triggerIds: "$trigger.id"])
+    assert(200 == resp.status || 405 == resp.status)
 
     resp = alertsClient.post(path: "triggers", body: trigger)
     assertEquals(200, resp.status)
