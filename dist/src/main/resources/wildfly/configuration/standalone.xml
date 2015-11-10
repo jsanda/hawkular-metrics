@@ -320,6 +320,7 @@
                 <in-vm-acceptor name="in-vm" server-id="0"/>
                 <jms-queue name="ExpiryQueue" entries="java:/jms/queue/ExpiryQueue"/>
                 <jms-queue name="DLQ" entries="java:/jms/queue/DLQ"/>
+                <jms-queue name="AlertsQueries" entries="java:/jms/queue/AlertsQueries"/>
                 <jms-topic name="HawkularMetricData"
                            entries="java:/jms/topic/HawkularMetricData java:jboss/exported/jms/topic/HawkularMetricData"/>
                 <jms-topic name="HawkularAvailData" entries="java:/jms/topic/HawkularAvailData"/>

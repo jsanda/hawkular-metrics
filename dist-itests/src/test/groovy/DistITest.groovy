@@ -1,4 +1,5 @@
 import com.google.common.base.Charsets
+import groovy.json.JsonOutput
 import groovyx.net.http.ContentType
 import groovyx.net.http.RESTClient
 import org.hawkular.alerts.api.model.condition.ThresholdCondition
@@ -131,6 +132,35 @@ ${entity}
     assertEquals(200, response.status)
 
     assertEquals(1, response.data.size())
+
+    response = metricsClient.get(path: "gauges/$metric", query: [detailed: true],
+        headers: [(tenantHeaderName): tenant])
+    assertEquals(200, response.status)
+
+    String json = JsonOutput.toJson(response.data)
+    String prettyJson = JsonOutput.prettyPrint(json)
+    println "RESPONSE = ${JsonOutput.prettyPrint(json)}"
+
+    assertEquals("The id property does not match. The actual response is,\n$prettyJson", metric, response.data.id)
+    assertEquals("The tenantId property does not match. The actual response is, \n$prettyJson", tenant,
+        response.data.tenantId)
+    assertEquals("The type property does not match. The actual response is,\n$prettyJson", "gauge", response.data.type)
+
+    assertEquals("Expected to get 1 alert. The actual response is,\n$prettyJson", 1, response.data.alerts.size())
+
+    def actualAlertJson = response.data.alerts[0]
+
+    // The dataId property corresponds to the "event" which in this case is the trigger
+    assertEquals("The alert.dataId property does not match. The actual response is,\n$prettyJson", trigger.id,
+        actualAlertJson.dataId)
+    assertEquals("The alert.severity property does not match. The actual response is,\n$prettyJson", 'MEDIUM',
+        actualAlertJson.severity)
+    assertEquals("The alert.status property does not match. The actual response is,\n$prettyJson", 'OPEN',
+        actualAlertJson.status)
+    assertEquals("The alert.trigger.id property does not match. The actual response is,\n$prettyJson", trigger.id,
+        actualAlertJson.trigger.id)
+    assertEquals("The alert.trigger.name property does not match. The actual response is,\n$prettyJson", trigger.name,
+        actualAlertJson.trigger.name)
   }
 
   static void waitForAlertsToInitialize() {
