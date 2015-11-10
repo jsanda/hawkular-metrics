@@ -30,15 +30,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.PatternSyntaxException;
 
-import javax.annotation.Resource;
 import javax.inject.Inject;
-import javax.jms.ConnectionFactory;
-import javax.jms.JMSConsumer;
-import javax.jms.JMSContext;
-import javax.jms.JMSException;
-import javax.jms.Queue;
-import javax.jms.TemporaryQueue;
-import javax.jms.TextMessage;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
@@ -56,14 +48,9 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
-import org.hawkular.alerts.api.json.JsonUtil;
-import org.hawkular.alerts.api.model.event.Alert;
-import org.hawkular.alerts.api.services.AlertsCriteria;
-import org.hawkular.alerts.api.services.AlertsQuery;
 import org.hawkular.metrics.api.jaxrs.handler.observer.MetricCreatedObserver;
 import org.hawkular.metrics.api.jaxrs.handler.observer.ResultSetObserver;
 import org.hawkular.metrics.api.jaxrs.model.ApiError;
-import org.hawkular.metrics.api.jaxrs.model.DetailedMetricDefinition;
 import org.hawkular.metrics.api.jaxrs.model.Gauge;
 import org.hawkular.metrics.api.jaxrs.model.GaugeDataPoint;
 import org.hawkular.metrics.api.jaxrs.model.MetricDefinition;
@@ -79,9 +66,7 @@ import org.hawkular.metrics.core.api.MetricId;
 import org.hawkular.metrics.core.api.MetricType;
 import org.hawkular.metrics.core.api.MetricsService;
 import org.hawkular.metrics.core.api.NumericBucketPoint;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.common.collect.ImmutableMap;
+import org.hawkular.metrics.service.MetricsServiceAdapter;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -101,16 +86,13 @@ import rx.Observable;
 public class GaugeHandler {
 
     @Inject
+    private MetricsServiceAdapter metricsServiceAdapter;
+
+    @Inject
     private MetricsService metricsService;
 
     @HeaderParam(TENANT_HEADER_NAME)
     private String tenantId;
-
-    @Resource(name = "java:/ConnectionFactory")
-    private ConnectionFactory connectionFactory;
-
-    @Resource(mappedName = "java:/jms/queue/AlertsQueries")
-    private Queue alertsQueriesQueue;
 
     @POST
     @Path("/")
@@ -186,38 +168,42 @@ public class GaugeHandler {
             @PathParam("id") String id,
             @QueryParam("detailed") @DefaultValue("false") boolean detailed) {
 
-        if (detailed) {
-            Observable<Metric<Double>> metricObservable = metricsService.findMetric(new MetricId<>(tenantId, GAUGE,
-                    id));
-            try (JMSContext context = connectionFactory.createContext()) {
-                AlertsCriteria criteria = new AlertsCriteria();
-                criteria.setTags(ImmutableMap.of("metric", id));
-                AlertsQuery alertsQuery = new AlertsQuery(tenantId, criteria);
-                TextMessage message = context.createTextMessage(JsonUtil.toJson(alertsQuery));
-                TemporaryQueue responseQueue = context.createTemporaryQueue();
-                message.setJMSReplyTo(responseQueue);
-                context.createProducer().send(alertsQueriesQueue, message);
-
-                JMSConsumer consumer = context.createConsumer(responseQueue);
-                TextMessage response = (TextMessage) consumer.receive();
-                List<Alert> alerts = JsonUtil.fromJson(response.getText(), new TypeReference<List<Alert>>() {}, true);
-
-                metricObservable
-                        .map(metric -> new DetailedMetricDefinition(metric, alerts))
-                        .map(metricDef -> Response.ok(metricDef).build())
-                        .switchIfEmpty(Observable.just(ApiUtils.noContent()))
-                        .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-
-            } catch (JMSException e) {
-                asyncResponse.resume(ApiUtils.serverError(e, "There was an internal error in the messaging subsystem"));
-            }
-        } else {
-            metricsService.findMetric(new MetricId<>(tenantId, GAUGE, id))
-                    .map(MetricDefinition::new)
-                    .map(metricDef -> Response.ok(metricDef).build())
-                    .switchIfEmpty(Observable.just(ApiUtils.noContent()))
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-        }
+        metricsServiceAdapter.findMetric(new MetricId<>(tenantId, GAUGE, id), detailed)
+                .map(metricDef -> Response.ok(metricDef).build())
+                .switchIfEmpty(Observable.just(ApiUtils.noContent()))
+                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+//        if (detailed) {
+//            Observable<Metric<Double>> metricObservable = metricsService.findMetric(new MetricId<>(tenantId, GAUGE,
+//                    id));
+//            try (JMSContext context = connectionFactory.createContext()) {
+//                AlertsCriteria criteria = new AlertsCriteria();
+//                criteria.setTags(ImmutableMap.of("metric", id));
+//                AlertsQuery alertsQuery = new AlertsQuery(tenantId, criteria);
+//                TextMessage message = context.createTextMessage(JsonUtil.toJson(alertsQuery));
+//                TemporaryQueue responseQueue = context.createTemporaryQueue();
+//                message.setJMSReplyTo(responseQueue);
+//                context.createProducer().send(alertsQueriesQueue, message);
+//
+//                JMSConsumer consumer = context.createConsumer(responseQueue);
+//                TextMessage response = (TextMessage) consumer.receive();
+//                List<Alert> alerts = JsonUtil.fromJson(response.getText(), new TypeReference<List<Alert>>() {}, true);
+//
+//                metricObservable
+//                        .map(metric -> new DetailedMetricDefinition(metric, alerts))
+//                        .map(metricDef -> Response.ok(metricDef).build())
+//                        .switchIfEmpty(Observable.just(ApiUtils.noContent()))
+//                        .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+//
+//            } catch (JMSException e) {
+//                asyncResponse.resume(ApiUtils.serverError(e, "There was an internal error in the messaging subsystem"));
+//            }
+//        } else {
+//            metricsService.findMetric(new MetricId<>(tenantId, GAUGE, id))
+//                    .map(MetricDefinition::new)
+//                    .map(metricDef -> Response.ok(metricDef).build())
+//                    .switchIfEmpty(Observable.just(ApiUtils.noContent()))
+//                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+//        }
     }
 
     @GET
