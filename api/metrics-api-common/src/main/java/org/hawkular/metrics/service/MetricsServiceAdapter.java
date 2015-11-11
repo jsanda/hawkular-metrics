@@ -17,7 +17,9 @@
 package org.hawkular.metrics.service;
 
 import org.hawkular.metrics.api.jaxrs.model.MetricDefinition;
+import org.hawkular.metrics.core.api.Metric;
 import org.hawkular.metrics.core.api.MetricId;
+import org.hawkular.metrics.core.api.MetricType;
 
 import rx.Observable;
 
@@ -27,4 +29,6 @@ import rx.Observable;
 public interface MetricsServiceAdapter {
 
     <T> Observable<? extends MetricDefinition> findMetric(MetricId<T> metricId, boolean detailed);
+
+    <T> Observable<Void> addDataPoints(MetricType<T> metricType, Observable<Metric<T>> metrics);
 }

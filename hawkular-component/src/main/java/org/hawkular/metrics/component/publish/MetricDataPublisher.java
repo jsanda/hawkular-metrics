@@ -26,8 +26,6 @@ import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
-import javax.jms.JMSProducer;
-import javax.jms.TextMessage;
 import javax.jms.Topic;
 
 import org.hawkular.metrics.api.jaxrs.model.Gauge;
@@ -52,8 +50,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 public class MetricDataPublisher {
     private static final Logger log = Logger.getLogger(MetricDataPublisher.class);
 
-    static final String HAWULAR_METRIC_DATA_TOPIC = "HawkularMetricData";
-
     @Resource(name = "java:/ConnectionFactory")
     private ConnectionFactory connectionFactory;
 
@@ -63,23 +59,10 @@ public class MetricDataPublisher {
     private ObjectMapper mapper;
 
 
-//    @Resource(mappedName = "java:/HawkularBusConnectionFactory")
-//    TopicConnectionFactory topicConnectionFactory;
-
-//    private MessageProcessor messageProcessor;
-//    private ConnectionContextFactory connectionContextFactory;
-//    private ProducerConnectionContext producerConnectionContext;
 
     @PostConstruct
     void init() {
-//        messageProcessor = new MessageProcessor();
-//        try {
-//            connectionContextFactory = new ConnectionContextFactory(topicConnectionFactory);
-//            Endpoint endpoint = new Endpoint(TOPIC, HAWULAR_METRIC_DATA_TOPIC);
-//            producerConnectionContext = connectionContextFactory.createProducerConnectionContext(endpoint);
-//        } catch (JMSException e) {
-//            throw new RuntimeException(e);
-//        }
+        // TODO use/inject a shared, configured mapper instance
         mapper = new ObjectMapper();
         mapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
         mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
@@ -96,50 +79,9 @@ public class MetricDataPublisher {
             Gauge gauge = new Gauge(metric.getId().getName(), dataPoints);
             String json = mapper.writeValueAsString(gauge);
 
-            TextMessage message = context.createTextMessage(json);
-            JMSProducer producer = context.createProducer();
-            producer.send(gaugeTopic, message);
+            context.createProducer().send(gaugeTopic, json);
         } catch (JsonProcessingException e) {
             log.error("Failed to generate JSON", e);
         }
     }
-
-//    public void publish(Metric<? extends Number> metric) {
-//        BasicMessage basicMessage = createNumericMessage(metric);
-//        try {
-//            messageProcessor.send(producerConnectionContext, basicMessage);
-//            log.tracef("Sent message: %s", basicMessage);
-//        } catch (JMSException e) {
-//            log.warnf(e, "Could not send metric: %s", metric);
-//        }
-//    }
-//
-//    private BasicMessage createNumericMessage(Metric<? extends Number> numeric) {
-//        MetricId<? extends Number> numericId = numeric.getId();
-//        List<MetricDataMessage.SingleMetric> numericList = numeric.getDataPoints().stream()
-//                .map(dataPoint -> new MetricDataMessage.SingleMetric(numericId.getName(), dataPoint.getTimestamp(),
-//                        dataPoint.getValue().doubleValue()))
-//                .collect(toList());
-//        MetricDataMessage.MetricData metricData = new MetricDataMessage.MetricData();
-//        metricData.setTenantId(numericId.getTenantId());
-//        metricData.setData(numericList);
-//        return new MetricDataMessage(metricData);
-//
-//    }
-
-//    @PreDestroy
-//    void shutdown() {
-//        if (producerConnectionContext != null) {
-//            try {
-//                producerConnectionContext.close();
-//            } catch (IOException ignored) {
-//            }
-//        }
-//        if (connectionContextFactory != null) {
-//            try {
-//                connectionContextFactory.close();
-//            } catch (JMSException ignored) {
-//            }
-//        }
-//    }
 }

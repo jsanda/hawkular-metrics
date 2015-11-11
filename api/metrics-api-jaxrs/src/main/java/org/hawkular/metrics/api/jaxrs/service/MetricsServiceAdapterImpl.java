@@ -20,7 +20,9 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
 import org.hawkular.metrics.api.jaxrs.model.MetricDefinition;
+import org.hawkular.metrics.core.api.Metric;
 import org.hawkular.metrics.core.api.MetricId;
+import org.hawkular.metrics.core.api.MetricType;
 import org.hawkular.metrics.core.api.MetricsService;
 import org.hawkular.metrics.service.MetricsServiceAdapter;
 
@@ -35,7 +37,13 @@ public class MetricsServiceAdapterImpl implements MetricsServiceAdapter {
     @Inject
     private MetricsService metricsService;
 
-    @Override public <T> Observable<? extends MetricDefinition> findMetric(MetricId<T> metricId, boolean detailed) {
+    @Override
+    public <T> Observable<? extends MetricDefinition> findMetric(MetricId<T> metricId, boolean detailed) {
         return metricsService.findMetric(metricId).map(MetricDefinition::new);
+    }
+
+    @Override
+    public <T> Observable<Void> addDataPoints(MetricType<T> metricType, Observable<Metric<T>> metrics) {
+        return metricsService.addDataPoints(metricType, metrics);
     }
 }

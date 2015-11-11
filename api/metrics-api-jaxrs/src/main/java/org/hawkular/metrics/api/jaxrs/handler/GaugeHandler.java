@@ -172,38 +172,6 @@ public class GaugeHandler {
                 .map(metricDef -> Response.ok(metricDef).build())
                 .switchIfEmpty(Observable.just(ApiUtils.noContent()))
                 .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-//        if (detailed) {
-//            Observable<Metric<Double>> metricObservable = metricsService.findMetric(new MetricId<>(tenantId, GAUGE,
-//                    id));
-//            try (JMSContext context = connectionFactory.createContext()) {
-//                AlertsCriteria criteria = new AlertsCriteria();
-//                criteria.setTags(ImmutableMap.of("metric", id));
-//                AlertsQuery alertsQuery = new AlertsQuery(tenantId, criteria);
-//                TextMessage message = context.createTextMessage(JsonUtil.toJson(alertsQuery));
-//                TemporaryQueue responseQueue = context.createTemporaryQueue();
-//                message.setJMSReplyTo(responseQueue);
-//                context.createProducer().send(alertsQueriesQueue, message);
-//
-//                JMSConsumer consumer = context.createConsumer(responseQueue);
-//                TextMessage response = (TextMessage) consumer.receive();
-//                List<Alert> alerts = JsonUtil.fromJson(response.getText(), new TypeReference<List<Alert>>() {}, true);
-//
-//                metricObservable
-//                        .map(metric -> new DetailedMetricDefinition(metric, alerts))
-//                        .map(metricDef -> Response.ok(metricDef).build())
-//                        .switchIfEmpty(Observable.just(ApiUtils.noContent()))
-//                        .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-//
-//            } catch (JMSException e) {
-//                asyncResponse.resume(ApiUtils.serverError(e, "There was an internal error in the messaging subsystem"));
-//            }
-//        } else {
-//            metricsService.findMetric(new MetricId<>(tenantId, GAUGE, id))
-//                    .map(MetricDefinition::new)
-//                    .map(metricDef -> Response.ok(metricDef).build())
-//                    .switchIfEmpty(Observable.just(ApiUtils.noContent()))
-//                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-//        }
     }
 
     @GET
