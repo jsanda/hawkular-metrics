@@ -20,7 +20,6 @@ import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
 import static org.hawkular.metrics.api.jaxrs.filter.TenantFilter.TENANT_HEADER_NAME;
 import static org.hawkular.metrics.api.jaxrs.util.ApiUtils.badRequest;
-import static org.hawkular.metrics.api.jaxrs.util.ApiUtils.noContent;
 import static org.hawkular.metrics.api.jaxrs.util.ApiUtils.serverError;
 import static org.hawkular.metrics.api.jaxrs.util.ApiUtils.valueToResponse;
 import static org.hawkular.metrics.core.api.MetricType.AVAILABILITY;
@@ -65,6 +64,7 @@ import org.hawkular.metrics.core.api.Metric;
 import org.hawkular.metrics.core.api.MetricId;
 import org.hawkular.metrics.core.api.MetricType;
 import org.hawkular.metrics.core.api.MetricsService;
+import org.hawkular.metrics.service.MetricsServiceAdapter;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -88,6 +88,9 @@ public class AvailabilityHandler {
 
     @HeaderParam(TENANT_HEADER_NAME)
     private String tenantId;
+
+    @Inject
+    private MetricsServiceAdapter metricsServiceAdapter;
 
     @POST
     @Path("/")
@@ -156,13 +159,15 @@ public class AvailabilityHandler {
             @ApiResponse(code = 204, message = "Query was successful, but no metrics definition is set."),
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric's definition.",
                          response = ApiError.class) })
-    public void getAvailabilityMetric(@Suspended final AsyncResponse asyncResponse, @PathParam("id") String id) {
+    public void getAvailabilityMetric(
+            @Suspended final AsyncResponse asyncResponse,
+            @PathParam("id") String id,
+            @QueryParam("detailed") @DefaultValue("false") boolean detailed) {
 
-        metricsService.findMetric(new MetricId<>(tenantId, AVAILABILITY, id))
-                .map(MetricDefinition::new)
+        metricsServiceAdapter.findMetric(new MetricId<>(tenantId, AVAILABILITY, id), detailed)
                 .map(metricDef -> Response.ok(metricDef).build())
-                .switchIfEmpty(Observable.just(noContent()))
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(serverError(t)));
+                .switchIfEmpty(Observable.just(ApiUtils.noContent()))
+                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
     }
 
     @GET

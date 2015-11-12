@@ -2,19 +2,13 @@ import com.google.common.base.Charsets
 import groovy.json.JsonOutput
 import groovyx.net.http.ContentType
 import groovyx.net.http.RESTClient
+import org.hawkular.alerts.api.model.condition.AvailabilityCondition
 import org.hawkular.alerts.api.model.condition.ThresholdCondition
 import org.hawkular.alerts.api.model.trigger.Trigger
 import org.junit.BeforeClass
 import org.junit.Test
 
-import javax.jms.*
-import javax.naming.Context
-import javax.naming.InitialContext
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-
 import static org.junit.Assert.assertEquals
-import static org.junit.Assert.assertTrue
 /*
  * Copyright 2014-2015 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
@@ -72,7 +66,7 @@ ${entity}
   }
 
   @Test
-  void endToEndTest() {
+  void endToEndGaugeTest() {
     String metric = 'G1'
 
     waitForAlertsToInitialize()
@@ -96,24 +90,24 @@ ${entity}
     assertEquals(200, resp.status)
     assertEquals(1, resp.data.size())
 
-    Properties env = new Properties();
-    env.put(Context.INITIAL_CONTEXT_FACTORY, "org.jboss.naming.remote.client.InitialContextFactory")
-    env.put(Context.PROVIDER_URL, "http-remoting://127.0.0.1:8083")
-    env.put(Context.SECURITY_PRINCIPAL, 'admin')
-    env.put(Context.SECURITY_CREDENTIALS, 'redhat')
-
-    InitialContext namingContext = new InitialContext(env)
-    ConnectionFactory connectionFactory = (ConnectionFactory) namingContext.lookup('jms/RemoteConnectionFactory')
-    JMSContext context = connectionFactory.createContext('admin', 'redhat')
-    Topic topic = (Topic) namingContext.lookup('jms/topic/HawkularMetricData')
-
-    JMSConsumer consumer = context.createConsumer(topic)
-    CountDownLatch latch = new CountDownLatch(1)
-    boolean messageReceived = false
-    consumer.messageListener = { Message message ->
-      messageReceived = true
-      latch.countDown()
-    }
+//    Properties env = new Properties();
+//    env.put(Context.INITIAL_CONTEXT_FACTORY, "org.jboss.naming.remote.client.InitialContextFactory")
+//    env.put(Context.PROVIDER_URL, "http-remoting://127.0.0.1:8083")
+//    env.put(Context.SECURITY_PRINCIPAL, 'admin')
+//    env.put(Context.SECURITY_CREDENTIALS, 'redhat')
+//
+//    InitialContext namingContext = new InitialContext(env)
+//    ConnectionFactory connectionFactory = (ConnectionFactory) namingContext.lookup('jms/RemoteConnectionFactory')
+//    JMSContext context = connectionFactory.createContext('admin', 'redhat')
+//    Topic topic = (Topic) namingContext.lookup('jms/topic/HawkularMetricData')
+//
+//    JMSConsumer consumer = context.createConsumer(topic)
+//    CountDownLatch latch = new CountDownLatch(1)
+//    boolean messageReceived = false
+//    consumer.messageListener = { Message message ->
+//      messageReceived = true
+//      latch.countDown()
+//    }
 
     def response = metricsClient.post(path: "gauges/$metric/data", body: [
         [timestamp: System.currentTimeMillis(), value: 12.22],
@@ -121,9 +115,9 @@ ${entity}
     ], headers: [(tenantHeaderName): tenant])
     assertEquals(200, response.status)
 
-    latch.await(5, TimeUnit.SECONDS)
+//    latch.await(5, TimeUnit.SECONDS)
 
-    assertTrue(messageReceived)
+//    assertTrue(messageReceived)
 
     // Wait a little bit to allow time for the trigger to fire an alert
     Thread.sleep(3000)
@@ -145,6 +139,76 @@ ${entity}
     assertEquals("The tenantId property does not match. The actual response is, \n$prettyJson", tenant,
         response.data.tenantId)
     assertEquals("The type property does not match. The actual response is,\n$prettyJson", "gauge", response.data.type)
+
+    assertEquals("Expected to get 1 alert. The actual response is,\n$prettyJson", 1, response.data.alerts.size())
+
+    def actualAlertJson = response.data.alerts[0]
+
+    // The dataId property corresponds to the "event" which in this case is the trigger
+    assertEquals("The alert.dataId property does not match. The actual response is,\n$prettyJson", trigger.id,
+        actualAlertJson.dataId)
+    assertEquals("The alert.severity property does not match. The actual response is,\n$prettyJson", 'MEDIUM',
+        actualAlertJson.severity)
+    assertEquals("The alert.status property does not match. The actual response is,\n$prettyJson", 'OPEN',
+        actualAlertJson.status)
+    assertEquals("The alert.trigger.id property does not match. The actual response is,\n$prettyJson", trigger.id,
+        actualAlertJson.trigger.id)
+    assertEquals("The alert.trigger.name property does not match. The actual response is,\n$prettyJson", trigger.name,
+        actualAlertJson.trigger.name)
+  }
+
+  @Test
+  void endToEndAvailabilityTest() {
+    String metric = 'A1'
+
+    waitForAlertsToInitialize()
+
+    Trigger trigger = new Trigger("test-trigger-2", metric)
+    trigger.enabled = true
+    trigger.tags.metric = metric
+
+    def resp = alertsClient.delete(path: "triggers/$trigger.id")
+    assert(200 == resp.status || 404 == resp.status)
+
+    resp = alertsClient.put(path: 'delete', query: [triggerIds: "$trigger.id"])
+    assert(200 == resp.status || 405 == resp.status)
+
+    resp = alertsClient.post(path: "triggers", body: trigger)
+    assertEquals(200, resp.status)
+
+    resp = alertsClient.put(path: "triggers/$trigger.id/conditions/firing", body: [
+        new AvailabilityCondition(trigger.id, trigger.name, AvailabilityCondition.Operator.DOWN)
+    ])
+    assertEquals(200, resp.status)
+    assertEquals(1, resp.data.size())
+
+    def response = metricsClient.post(path: "availability/$metric/data", body: [
+        [timestamp: System.currentTimeMillis(), value: 'down'],
+        [timestamp: System.currentTimeMillis() - 500, value: 'up'],
+    ], headers: [(tenantHeaderName): tenant])
+    assertEquals(200, response.status)
+
+    // Wait a little bit to allow time for the trigger to fire an alert
+    Thread.sleep(3000)
+
+    response = alertsClient.get(path: '', query: [tags:"metric|$metric",thin:true])
+    assertEquals(200, response.status)
+
+    assertEquals(1, response.data.size())
+
+    response = metricsClient.get(path: "availability/$metric", query: [detailed: true],
+        headers: [(tenantHeaderName): tenant])
+    assertEquals(200, response.status)
+
+    String json = JsonOutput.toJson(response.data)
+    String prettyJson = JsonOutput.prettyPrint(json)
+    println "RESPONSE = ${JsonOutput.prettyPrint(json)}"
+
+    assertEquals("The id property does not match. The actual response is,\n$prettyJson", metric, response.data.id)
+    assertEquals("The tenantId property does not match. The actual response is, \n$prettyJson", tenant,
+        response.data.tenantId)
+    assertEquals("The type property does not match. The actual response is,\n$prettyJson", "availability",
+        response.data.type)
 
     assertEquals("Expected to get 1 alert. The actual response is,\n$prettyJson", 1, response.data.alerts.size())
 

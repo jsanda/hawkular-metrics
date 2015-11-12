@@ -58,8 +58,6 @@ public class MetricDataPublisher {
 
     private ObjectMapper mapper;
 
-
-
     @PostConstruct
     void init() {
         // TODO use/inject a shared, configured mapper instance
