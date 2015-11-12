@@ -39,19 +39,21 @@
     <!-- For tests -->
     <wildfly-maven-plugin.skip>true</wildfly-maven-plugin.skip>
     <cassandra.keyspace>hawkular_metrics_component_integration_tests</cassandra.keyspace>
+    <version.org.wildfly>10.0.0.CR4</version.org.wildfly>
+    <version.org.wildfly.core>2.0.0.CR8</version.org.wildfly.core>
   </properties>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.wildfly.bom</groupId>
-        <artifactId>jboss-javaee-7.0-wildfly</artifactId>
-        <version>${version.org.wildfly}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
+  <!--<dependencyManagement>-->
+    <!--<dependencies>-->
+      <!--<dependency>-->
+        <!--<groupId>org.wildfly.bom</groupId>-->
+        <!--<artifactId>jboss-javaee-7.0-wildfly</artifactId>-->
+        <!--<version>${version.org.wildfly}</version>-->
+        <!--<type>pom</type>-->
+        <!--<scope>import</scope>-->
+      <!--</dependency>-->
+    <!--</dependencies>-->
+  <!--</dependencyManagement>-->
 
   <dependencies>
     <dependency>
@@ -60,29 +62,29 @@
       <version>${project.version}</version>
       <scope>provided</scope>
     </dependency>
-    <dependency>
-      <groupId>org.hawkular.bus</groupId>
-      <artifactId>hawkular-bus-common</artifactId>
-      <version>${version.org.hawkular.bus}</version>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.activemq</groupId>
-          <artifactId>activemq-all</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.apache.activemq</groupId>
-          <artifactId>activemq-jaas</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
+    <!--<dependency>-->
+      <!--<groupId>org.hawkular.bus</groupId>-->
+      <!--<artifactId>hawkular-bus-common</artifactId>-->
+      <!--<version>${version.org.hawkular.bus}</version>-->
+      <!--<scope>test</scope>-->
+      <!--<exclusions>-->
+        <!--<exclusion>-->
+          <!--<groupId>org.apache.activemq</groupId>-->
+          <!--<artifactId>activemq-all</artifactId>-->
+        <!--</exclusion>-->
+        <!--<exclusion>-->
+          <!--<groupId>org.apache.activemq</groupId>-->
+          <!--<artifactId>activemq-jaas</artifactId>-->
+        <!--</exclusion>-->
+      <!--</exclusions>-->
+    <!--</dependency>-->
     <!-- Nest provided -->
-    <dependency>
-      <groupId>org.apache.activemq</groupId>
-      <artifactId>activemq-client</artifactId>
-      <version>${version.org.apache.activemq}</version>
-      <scope>test</scope>
-    </dependency>
+    <!--<dependency>-->
+      <!--<groupId>org.apache.activemq</groupId>-->
+      <!--<artifactId>activemq-client</artifactId>-->
+      <!--<version>${version.org.apache.activemq}</version>-->
+      <!--<scope>test</scope>-->
+    <!--</dependency>-->
     <!-- Wildfly provided -->
     <!-- No need to set the jboss-logging scope here since Wildfly BOM includes jboss-logging -->
     <dependency>
@@ -93,21 +95,25 @@
     <dependency>
       <groupId>org.jboss.spec.javax.ejb</groupId>
       <artifactId>jboss-ejb-api_3.2_spec</artifactId>
+      <version>1.0.0.Final</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.jboss.spec.javax.jms</groupId>
       <artifactId>jboss-jms-api_2.0_spec</artifactId>
+      <version>1.0.0.Final</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.jboss.spec.javax.enterprise.concurrent</groupId>
       <artifactId>jboss-concurrency-api_1.0_spec</artifactId>
+      <version>1.0.0.Final</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>javax.enterprise</groupId>
       <artifactId>cdi-api</artifactId>
+      <version>1.2</version>
       <scope>provided</scope>
     </dependency>
     <!-- Overlay -->
@@ -137,6 +143,25 @@
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.wildfly</groupId>
+      <artifactId>wildfly-jms-client-bom</artifactId>
+      <version>${version.org.wildfly}</version>
+      <type>pom</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.activemq</groupId>
+      <artifactId>artemis-jms-client</artifactId>
+      <version>1.1.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>commons-beanutils</groupId>
+      <artifactId>commons-beanutils</artifactId>
+      <version>1.9.2</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -175,10 +200,23 @@
         <groupId>org.wildfly.plugins</groupId>
         <artifactId>wildfly-maven-plugin</artifactId>
         <configuration>
-          <groupId>org.hawkular.nest</groupId>
-          <artifactId>hawkular-nest-distro</artifactId>
-          <version>${version.org.hawkular.bus}</version>
-          <classifier>distribution</classifier>
+          <!--<groupId>org.hawkular.nest</groupId>-->
+          <!--<artifactId>hawkular-nest-distro</artifactId>-->
+          <!--<version>${version.org.hawkular.bus}</version>-->
+          <!--<classifier>distribution</classifier>-->
+          <version>${version.org.wildfly}</version>
+          <add-user>
+            <users>
+              <user>
+                <username>admin</username>
+                <password>redhat</password>
+                <groups>
+                  <group>guest</group>
+                </groups>
+                <application-user>true</application-user>
+              </user>
+            </users>
+          </add-user>
         </configuration>
       </plugin>
     </plugins>
@@ -241,6 +279,7 @@
                 <configuration>
                   <skip>${wildfly-maven-plugin.skip}</skip>
                   <port>${component.wildfly.management.port}</port>
+                  <serverConfig>../../../../../standalone.xml</serverConfig>
                   <javaOpts>
                     <javaOpt>-Xms64m</javaOpt>
                     <javaOpt>-Xmx512m</javaOpt>
@@ -257,35 +296,35 @@
                   </javaOpts>
                 </configuration>
               </execution>
-              <execution>
-                <id>configure-loggers</id>
-                <phase>pre-integration-test</phase>
-                <goals>
-                  <goal>execute-commands</goal>
-                </goals>
-                <configuration>
-                  <skip>${wildfly-maven-plugin.skip}</skip>
-                  <port>${component.wildfly.management.port}</port>
-                  <jbossHome>${project.build.directory}/wildfly-run/wildfly-${version.org.wildfly}</jbossHome>
-                  <executeCommands>
-                    <commands>
-                      <!-- In the Nest, org.hawkular logger is already defined, we only need to set the level -->
-                      <command>
-                        /subsystem=logging/logger=org.hawkular:write-attribute(name="level",value="TRACE")
-                      </command>
-                      <command>
-                        /subsystem=logging/console-handler=CONSOLE:write-attribute(name="level",value="${wildfly.logging.console.level}")
-                      </command>
-                      <command>
-                        /subsystem=logging/periodic-rotating-file-handler=FILE:write-attribute(name="level",value="${wildfly.logging.file.level}")
-                      </command>
-                      <commmand>
-                        /subsystem=logging/periodic-rotating-file-handler=FILE:write-attribute(name="file",value={path="${project.build.directory}/wildfly-test.log"})
-                      </commmand>
-                    </commands>
-                  </executeCommands>
-                </configuration>
-              </execution>
+              <!--<execution>-->
+                <!--<id>configure-loggers</id>-->
+                <!--<phase>pre-integration-test</phase>-->
+                <!--<goals>-->
+                  <!--<goal>execute-commands</goal>-->
+                <!--</goals>-->
+                <!--<configuration>-->
+                  <!--<skip>${wildfly-maven-plugin.skip}</skip>-->
+                  <!--<port>${component.wildfly.management.port}</port>-->
+                  <!--<jbossHome>${project.build.directory}/wildfly-run/wildfly-${version.org.wildfly}</jbossHome>-->
+                  <!--<executeCommands>-->
+                    <!--<commands>-->
+                      <!--&lt;!&ndash; In the Nest, org.hawkular logger is already defined, we only need to set the level &ndash;&gt;-->
+                      <!--<command>-->
+                        <!--/subsystem=logging/logger=org.hawkular:write-attribute(name="level",value="TRACE")-->
+                      <!--</command>-->
+                      <!--<command>-->
+                        <!--/subsystem=logging/console-handler=CONSOLE:write-attribute(name="level",value="${wildfly.logging.console.level}")-->
+                      <!--</command>-->
+                      <!--<command>-->
+                        <!--/subsystem=logging/periodic-rotating-file-handler=FILE:write-attribute(name="level",value="${wildfly.logging.file.level}")-->
+                      <!--</command>-->
+                      <!--<commmand>-->
+                        <!--/subsystem=logging/periodic-rotating-file-handler=FILE:write-attribute(name="file",value={path="${project.build.directory}/wildfly-test.log"})-->
+                      <!--</commmand>-->
+                    <!--</commands>-->
+                  <!--</executeCommands>-->
+                <!--</configuration>-->
+              <!--</execution>-->
               <execution>
                 <id>deploy-webapp</id>
                 <phase>pre-integration-test</phase>

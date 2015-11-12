@@ -17,37 +17,33 @@
 
 
 package org.hawkular.metrics.component.bus.test
-
-import static java.util.concurrent.TimeUnit.MINUTES
-import static org.hawkular.bus.common.Endpoint.Type.TOPIC
-import static org.junit.Assert.assertEquals
-import static org.junit.Assert.assertNotNull
-import static org.junit.Assert.assertTrue
-
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicInteger
-
-import org.hawkular.bus.common.ConnectionContextFactory
-import org.hawkular.bus.common.Endpoint
-import org.hawkular.bus.common.MessageProcessor
-import org.hawkular.bus.common.consumer.BasicMessageListener
-import org.hawkular.bus.common.consumer.ConsumerConnectionContext
-import org.hawkular.metrics.component.publish.AvailDataMessage
-import org.hawkular.metrics.component.publish.MetricDataMessage
+import com.google.common.base.Charsets
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import groovyx.net.http.ContentType
+import groovyx.net.http.RESTClient
 import org.junit.After
+import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
 
-import com.google.common.base.Charsets
+import javax.jms.ConnectionFactory
+import javax.jms.JMSConsumer
+import javax.jms.JMSContext
+import javax.jms.Topic
+import javax.naming.Context
+import javax.naming.InitialContext
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicInteger
 
-import groovyx.net.http.ContentType
-import groovyx.net.http.RESTClient
-
+import static java.util.concurrent.TimeUnit.MINUTES
+import static junit.framework.Assert.assertEquals
+import static org.junit.Assert.assertNotNull
+import static org.junit.Assert.assertTrue
 /**
  * @author Thomas Segismont
  */
 class InsertedDataITest {
-  static final String BROKER_URL = System.getProperty("hawkular-bus.broker.url", "tcp://localhost:62626")
   static baseURI = System.getProperty('hawkular-metrics.base-uri') ?: '127.0.0.1:8080/hawkular/metrics'
   static final String TENANT_PREFIX = UUID.randomUUID().toString()
   static final AtomicInteger TENANT_ID_COUNTER = new AtomicInteger(0)
@@ -55,6 +51,11 @@ class InsertedDataITest {
   static RESTClient hawkularMetrics
   static defaultFailureHandler
   static final double DELTA = 0.001
+
+  static InitialContext namingContext
+  static ConnectionFactory connectionFactory
+
+  JMSContext jmsContext
 
   @BeforeClass
   static void initClient() {
@@ -75,6 +76,14 @@ ${entity}
       System.err.println(msg)
       return resp
     }
+
+    Properties env = new Properties();
+    env.put(Context.INITIAL_CONTEXT_FACTORY, "org.jboss.naming.remote.client.InitialContextFactory")
+    env.put(Context.PROVIDER_URL, "http-remoting://127.0.0.1:8083")
+    env.put(Context.SECURITY_PRINCIPAL, 'admin')
+    env.put(Context.SECURITY_CREDENTIALS, 'redhat')
+    namingContext = new InitialContext(env)
+    connectionFactory = (ConnectionFactory) namingContext.lookup('jms/RemoteConnectionFactory')
   }
 
   static String nextTenantId() {
@@ -83,30 +92,29 @@ ${entity}
 
   def tenantId = nextTenantId()
 
-  def consumerFactory = new ConnectionContextFactory(BROKER_URL)
-  ConsumerConnectionContext consumerContext
-  def messageProcessor = new MessageProcessor()
+  @Before
+  void setUp() {
+    jmsContext = connectionFactory.createContext('admin', 'redhat')
+  }
 
   @After
   void tearDown() {
-    consumerContext?.close()
-    consumerFactory?.close()
+    jmsContext.close()
   }
 
   @Test
   void testAvailData() {
-    def endpoint = new Endpoint(TOPIC, 'HawkularAvailData')
-    consumerContext = consumerFactory.createConsumerConnectionContext(endpoint)
+    Topic topic = (Topic) namingContext.lookup('jms/topic/HawkularAvailData')
+    JMSConsumer consumer = jmsContext.createConsumer(topic)
+    CountDownLatch latch = new CountDownLatch(1)
+    def json = null
+    JsonSlurper jsonSlurper = new JsonSlurper()
 
-    def latch = new CountDownLatch(1)
-    AvailDataMessage actual = null
-    messageProcessor.listen(consumerContext, new BasicMessageListener<AvailDataMessage>() {
-      @Override
-      void onBasicMessage(AvailDataMessage message) {
-        actual = message
-        latch.countDown()
-      }
-    })
+    consumer.messageListener = { message ->
+      json = jsonSlurper.parseText(message.text)
+      println "RESPONSE = ${JsonOutput.prettyPrint(message.text)}"
+      latch.countDown()
+    }
 
     def metricName = 'test', timestamp = 13, value = 'UP'
 
@@ -120,32 +128,28 @@ ${entity}
 
 
     assertTrue('No message received', latch.await(1, MINUTES))
+    assertNotNull(json)
 
-    def data = actual?.availData?.data
-    assertNotNull(data)
-    assertEquals(1, data.size())
-
-    def avail = data[0]
-    assertEquals(tenantId, avail.tenantId)
-    assertEquals(metricName, avail.id)
-    assertEquals(timestamp, avail.timestamp)
-    assertEquals(value, avail.avail)
+    assertEquals(metricName, json.id)
+    assertEquals(1, json.data.size())
+    assertEquals(timestamp, json.data[0].timestamp)
+    assertEquals(value.toLowerCase(), json.data[0].value)
   }
 
   @Test
   void testNumericData() {
-    def endpoint = new Endpoint(TOPIC, 'HawkularMetricData')
-    consumerContext = consumerFactory.createConsumerConnectionContext(endpoint)
+    Topic topic = (Topic) namingContext.lookup('jms/topic/HawkularMetricData')
+    JMSConsumer consumer = jmsContext.createConsumer(topic)
+    CountDownLatch latch = new CountDownLatch(1)
+    def json = null
+    JsonSlurper jsonSlurper = new JsonSlurper()
 
-    def latch = new CountDownLatch(1)
-    MetricDataMessage actual = null
-    messageProcessor.listen(consumerContext, new BasicMessageListener<MetricDataMessage>() {
-      @Override
-      void onBasicMessage(MetricDataMessage message) {
-        actual = message
-        latch.countDown()
-      }
-    })
+    consumer.messageListener = { message ->
+      json = jsonSlurper.parseText(message.text)
+      println "RESPONSE = ${JsonOutput.prettyPrint(message.text)}"
+      latch.countDown()
+    }
+
 
     def metricName = 'test', timestamp = 13, value = 15.3
 
@@ -159,15 +163,11 @@ ${entity}
 
 
     assertTrue('No message received', latch.await(1, MINUTES))
+    assertNotNull(json)
 
-    def data = actual?.metricData?.data
-    assertNotNull(data)
-    assertEquals(tenantId, actual.metricData.tenantId)
-    assertEquals(1, data.size())
-
-    def numeric = data[0]
-    assertEquals(metricName, numeric.source)
-    assertEquals(timestamp, numeric.timestamp)
-    assertEquals(value, numeric.value, DELTA)
+    assertEquals(metricName, json.id)
+    assertEquals(1, json.data.size())
+    assertEquals(timestamp, json.data[0].timestamp)
+    assertEquals(value, json.data[0].value, DELTA)
   }
 }
