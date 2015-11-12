@@ -18,7 +18,8 @@ package org.hawkular.metrics.service.messaging;
 
 import javax.annotation.Resource;
 import javax.enterprise.concurrent.ManagedExecutorService;
-import javax.enterprise.context.RequestScoped;
+import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 import javax.jms.CompletionListener;
 import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
@@ -32,12 +33,15 @@ import javax.jms.TextMessage;
 
 import org.jboss.logging.Logger;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import rx.Observable;
 
 /**
  * @author jsanda
  */
-@RequestScoped
+@ApplicationScoped
 public class RxBusUtil {
 
     private static final Logger log = Logger.getLogger(RxBusUtil.class);
@@ -48,10 +52,44 @@ public class RxBusUtil {
     @Resource
     private ManagedExecutorService executorService;
 
+    @Inject
+    private ObjectMapper mapper;
+
     public RxBusUtil() {
     }
 
-    public Observable<Message> send(JMSProducer producer, Destination destination, String json) {
+    /**
+     * Asynchronously sends a value to the specified {@link Destination destination}. The value is first serialized
+     * into JSON as a String object.
+     *
+     * @return An {@link Observable observable} that emit the message that was sent
+     */
+    public <T> Observable<Message> sendJson(Destination destination, T value) {
+        JMSContext context = connectionFactory.createContext();
+        JMSProducer producer = context.createProducer();
+        return Observable.create(subscriber -> {
+            try {
+                String json = mapper.writeValueAsString(value);
+                producer.setAsync(new CompletionListener() {
+                    @Override public void onCompletion(Message message) {
+                        subscriber.onNext(message);
+                        close(context);
+                        subscriber.onCompleted();
+                    }
+
+                    @Override public void onException(Message message, Exception exception) {
+                        subscriber.onError(exception);
+                        close(context);
+                    }
+                });
+                producer.send(destination, json);
+            } catch (JsonProcessingException e) {
+                subscriber.onError(e);
+            }
+        });
+    }
+
+    private Observable<Message> send(JMSProducer producer, Destination destination, String json) {
         return Observable.create(subscriber -> {
             producer.setAsync(new CompletionListener() {
                 @Override public void onCompletion(Message message) {
@@ -67,7 +105,7 @@ public class RxBusUtil {
         });
     }
 
-    public Observable<String> receive(Observable<Message> request, JMSConsumer consumer) {
+    private Observable<String> receive(Observable<Message> request, JMSConsumer consumer) {
         return Observable.create(subscriber ->
                         request.subscribe(
                                 requestMsg ->

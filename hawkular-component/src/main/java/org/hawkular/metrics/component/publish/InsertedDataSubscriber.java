@@ -17,6 +17,8 @@
 
 package org.hawkular.metrics.component.publish;
 
+import static java.util.stream.Collectors.toList;
+
 import static org.hawkular.metrics.core.api.MetricType.AVAILABILITY;
 import static org.hawkular.metrics.core.api.MetricType.GAUGE;
 
@@ -24,15 +26,22 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PreDestroy;
+import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
+import javax.jms.Topic;
 
 import org.hawkular.metrics.api.jaxrs.ServiceReady;
+import org.hawkular.metrics.api.jaxrs.model.Availability;
+import org.hawkular.metrics.api.jaxrs.model.AvailabilityDataPoint;
+import org.hawkular.metrics.api.jaxrs.model.Gauge;
+import org.hawkular.metrics.api.jaxrs.model.GaugeDataPoint;
 import org.hawkular.metrics.api.jaxrs.util.Eager;
 import org.hawkular.metrics.core.api.AvailabilityType;
 import org.hawkular.metrics.core.api.Metric;
 import org.hawkular.metrics.core.api.MetricsService;
+import org.hawkular.metrics.service.messaging.RxBusUtil;
 import org.jboss.logging.Logger;
 
 import rx.Observable;
@@ -47,12 +56,17 @@ import rx.schedulers.Schedulers;
 @ApplicationScoped
 @Eager
 public class InsertedDataSubscriber {
+
     private static final Logger log = Logger.getLogger(InsertedDataSubscriber.class);
 
+    @Resource(mappedName = "java:/jms/topic/HawkularMetricData")
+    private Topic gaugeTopic;
+
+    @Resource(mappedName = "java:/jms/topic/HawkularAvailData")
+    private Topic availabilityTopic;
+
     @Inject
-    MetricDataPublisher metricDataPublisher;
-    @Inject
-    AvailDataPublisher availDataPublisher;
+    private RxBusUtil rxBusUtil;
 
     private Subscription subscription;
 
@@ -71,12 +85,32 @@ public class InsertedDataSubscriber {
         if (metric.getId().getType() == AVAILABILITY) {
             @SuppressWarnings("unchecked")
             Metric<AvailabilityType> avail = (Metric<AvailabilityType>) metric;
-            availDataPublisher.publish(avail);
+            publishAvailability(avail);
         } else if (metric.getId().getType() == GAUGE) {
             @SuppressWarnings("unchecked")
             Metric<Double> numeric = (Metric<Double>) metric;
-            metricDataPublisher.publish(numeric);
+            publishGauge(numeric);
         }
+    }
+
+    private void publishGauge(Metric<Double> metric) {
+        List<GaugeDataPoint> dataPoints = metric.getDataPoints().stream().map(GaugeDataPoint::new)
+                .collect(toList());
+        Gauge gauge = new Gauge(metric.getId().getName(), dataPoints);
+        rxBusUtil.sendJson(gaugeTopic, gauge).subscribe(
+                msg -> log.debugf("Successfully published metric [%s] in message [%s]", gauge, msg),
+                t -> log.warnf(t, "Failed to send gauge metric %s", gauge)
+        );
+    }
+
+    public void publishAvailability(Metric<AvailabilityType> metric) {
+        List<AvailabilityDataPoint> dataPoints = metric.getDataPoints().stream().map(AvailabilityDataPoint::new)
+                .collect(toList());
+        Availability availability = new Availability(metric.getId().getName(), dataPoints);
+        rxBusUtil.sendJson(availabilityTopic, availability).subscribe(
+                msg -> log.debugf("Successfully published metric [%s] in message [%s]", availability, msg),
+                t-> log.warnf(t, "Failed to send gauge metric %s", availability)
+        );
     }
 
     @PreDestroy
