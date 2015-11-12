@@ -16,16 +16,14 @@
  */
 package org.hawkular.metrics.api.jaxrs.util;
 
+import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.ext.ContextResolver;
 import javax.ws.rs.ext.Provider;
 
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 
 @Provider
 @Produces(MediaType.APPLICATION_JSON)
@@ -34,17 +32,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
  * @author Stefan Negrea
  */
 public class JacksonConfig implements ContextResolver<ObjectMapper> {
-    private final ObjectMapper mapper;
 
-    public JacksonConfig() {
-        mapper = new ObjectMapper();
-        mapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-        mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        mapper.setSerializationInclusion(Include.NON_EMPTY);
-        mapper.setSerializationInclusion(Include.NON_NULL);
-        mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
-        mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
-    }
+    @Inject
+    private ObjectMapper mapper;
 
     @Override
     public ObjectMapper getContext(Class<?> type) {

@@ -21,9 +21,9 @@ import static java.util.stream.Collectors.toList;
 
 import java.util.List;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
 import javax.jms.Topic;
@@ -34,11 +34,8 @@ import org.hawkular.metrics.api.jaxrs.util.Eager;
 import org.hawkular.metrics.core.api.Metric;
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 
 /**
  * Publishes {@link MetricDataMessage} messages on the Hawkular bus.
@@ -56,19 +53,8 @@ public class MetricDataPublisher {
     @Resource(mappedName = "java:/jms/topic/HawkularMetricData")
     private Topic gaugeTopic;
 
+    @Inject
     private ObjectMapper mapper;
-
-    @PostConstruct
-    void init() {
-        // TODO use/inject a shared, configured mapper instance
-        mapper = new ObjectMapper();
-        mapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-        mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
-        mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
-    }
 
     public void publish(Metric<Double> metric) {
         try (JMSContext context = connectionFactory.createContext()) {
@@ -79,7 +65,7 @@ public class MetricDataPublisher {
 
             context.createProducer().send(gaugeTopic, json);
         } catch (JsonProcessingException e) {
-            log.error("Failed to generate JSON", e);
+            log.warnf(e, "Could not send metric: %s", metric);
         }
     }
 }

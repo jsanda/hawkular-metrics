@@ -21,9 +21,9 @@ import static java.util.stream.Collectors.toList;
 
 import java.util.List;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSContext;
 import javax.jms.Topic;
@@ -35,11 +35,8 @@ import org.hawkular.metrics.core.api.AvailabilityType;
 import org.hawkular.metrics.core.api.Metric;
 import org.jboss.logging.Logger;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 
 /**
  * Publishes {@link AvailDataMessage} messages on the Hawkular bus.
@@ -57,29 +54,10 @@ public class AvailDataPublisher {
     @Resource(mappedName = "java:/jms/topic/HawkularAvailData")
     private Topic availabilityTopic;
 
+    @Inject
     private ObjectMapper mapper;
 
-    @PostConstruct
-    void init() {
-        // TODO use/inject a shared, configured mapper instance
-        mapper = new ObjectMapper();
-        mapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-        mapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        mapper.configure(SerializationFeature.WRITE_EMPTY_JSON_ARRAYS, false);
-        mapper.configure(SerializationFeature.WRITE_NULL_MAP_VALUES, false);
-    }
-
     public void publish(Metric<AvailabilityType> metric) {
-//        BasicMessage basicMessage = createAvailMessage(metric);
-//        try {
-//            messageProcessor.send(producerConnectionContext, basicMessage);
-//            log.tracef("Sent message: %s", basicMessage);
-//        } catch (JMSException e) {
-//            log.warnf(e, "Could not send metric: %s", metric);
-//        }
-
         try (JMSContext context = connectionFactory.createContext()) {
             List<AvailabilityDataPoint> dataPoints = metric.getDataPoints().stream().map(AvailabilityDataPoint::new)
                     .collect(toList());
@@ -88,35 +66,8 @@ public class AvailDataPublisher {
 
             context.createProducer().send(availabilityTopic, json);
         } catch (JsonProcessingException e) {
-            log.error("Failed to generate JSON", e);
+            log.warnf(e, "Could not send metric: %s", metric);
         }
     }
 
-//    private BasicMessage createAvailMessage(Metric<AvailabilityType> avail) {
-//        MetricId<AvailabilityType> availId = avail.getId();
-//        List<AvailDataMessage.SingleAvail> availList = avail.getDataPoints().stream()
-//                .map(dataPoint -> new AvailDataMessage.SingleAvail(availId.getTenantId(), availId.getName(),
-//                        dataPoint.getTimestamp(),
-//                        dataPoint.getValue().getText().toUpperCase()))
-//                .collect(toList());
-//        AvailDataMessage.AvailData metricData = new AvailDataMessage.AvailData();
-//        metricData.setData(availList);
-//        return new AvailDataMessage(metricData);
-//    }
-//
-//    @PreDestroy
-//    void shutdown() {
-//        if (producerConnectionContext != null) {
-//            try {
-//                producerConnectionContext.close();
-//            } catch (IOException ignored) {
-//            }
-//        }
-//        if (connectionContextFactory != null) {
-//            try {
-//                connectionContextFactory.close();
-//            } catch (JMSException ignored) {
-//            }
-//        }
-//    }
 }
