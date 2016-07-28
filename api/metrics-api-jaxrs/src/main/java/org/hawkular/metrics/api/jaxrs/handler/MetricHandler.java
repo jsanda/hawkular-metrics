@@ -78,6 +78,7 @@ import org.hawkular.metrics.model.param.BucketConfig;
 import org.hawkular.metrics.model.param.Duration;
 import org.hawkular.metrics.model.param.Tags;
 import org.hawkular.metrics.model.param.TimeRange;
+import org.jboss.logging.Logger;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ObjectArrays;
@@ -102,6 +103,9 @@ import rx.functions.Func1;
 @Api(tags = "Metric")
 @ApplicationScoped
 public class MetricHandler {
+
+    private Logger logger = Logger.getLogger(MetricHandler.class);
+
     @Inject
     private MetricsService metricsService;
 
@@ -261,6 +265,8 @@ public class MetricHandler {
     @Path("/stats/query")
     @SuppressWarnings("unchecked")
     public void findStats(@Suspended AsyncResponse asyncResponse, StatsQueryRequest query) {
+        logger.debug("Fetching stats for " + query);
+
         if (isMetricIdsEmpty(query) && query.getTags() == null) {
             asyncResponse.resume(badRequest(new ApiError("Either the metrics or the tags property must be set")));
         }
@@ -424,8 +430,32 @@ public class MetricHandler {
                     return stats;
                 })
                 .first()
+                .doOnNext(results -> {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Returning " + results.get(GAUGE.getText()).keySet().size() + " gauge metrics");
+                        logger.debug("Returning " + results.get(COUNTER.getText()).keySet().size() + " counter " +
+                                "metrics");
+                        logger.debug("Returning " + results.get(AVAILABILITY.getText()).keySet().size() +
+                                " availability metrics");
+                        logger.debug("Returning " + results.get(GAUGE_RATE.getText()).keySet().size() +
+                                " gauge rate metrics");
+                        logger.debug("Returning " + results.get(COUNTER_RATE.getText()).keySet().size() +
+                                " counter rate metrics");
+                    }
+                })
                 .map(ApiUtils::mapToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.error(t)));
+                .subscribe(
+                        response -> {
+                            logger.debug("Sending response to client");
+                            asyncResponse.resume(response);
+                        },
+                        t -> {
+                            logger.warn("There was an error processing the stats query", t);
+                            asyncResponse.resume(ApiUtils.error(t));
+                        },
+                        () -> logger.debug("Finished processing stats query for " + query)
+                );
+//                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.error(t)));
     }
 
     @SuppressWarnings("unchecked")
@@ -438,6 +468,8 @@ public class MetricHandler {
                         bucketsConfig.getTimeRange().getEnd(), bucketsConfig.getBuckets(), percentiles)
                         .map(bucketPoints -> new NamedBucketPoints<>(counter.getMetricId().getName(),
                                 bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched counter stats from tags for {tenantId=" + getTenant() +
+                        ", " + "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) ->
                         statsMap.put(namedBucketPoints.id, namedBucketPoints.bucketPoints));
         return counterStats;
@@ -452,6 +484,8 @@ public class MetricHandler {
                 metricsService.findGaugeStats(gauge.getMetricId(), bucketsConfig, percentiles)
                         .map(bucketPoints -> new NamedBucketPoints(gauge.getMetricId().getName(),
                                 bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched gauge stats from tags for {tenantId=" + getTenant() +
+                        ", " + "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) ->
                         statsMap.put(namedBucketPoints.id, namedBucketPoints.bucketPoints));
         return gaugeStats;
@@ -468,6 +502,8 @@ public class MetricHandler {
                 bucketsConfig.getTimeRange().getEnd(), bucketsConfig.getBuckets())
                 .map(bucketPoints -> new NamedBucketPoints<>(availability.getMetricId().getName(),
                         bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched availability stats for {tenantId=" + getTenant() + ","
+                        + " " + "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) ->
                         statsMap.put(namedBucketPoints.id, namedBucketPoints.bucketPoints));
         return availabilityStats;
@@ -481,6 +517,8 @@ public class MetricHandler {
                 .flatMap(id -> metricsService.findGaugeStats(new MetricId<>(getTenant(), GAUGE, id),
                         bucketsConfig, percentiles)
                         .map(bucketPoints -> new NamedBucketPoints(id, bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched gauge stats for {tenantId=" + getTenant() + ", " +
+                        "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) ->
                         statsMap.put(namedBucketPoints.id, namedBucketPoints.bucketPoints));
         return gaugeStats;
@@ -490,6 +528,8 @@ public class MetricHandler {
             BucketConfig bucketConfig, List<Percentile> percentiles) {
         return ids.flatMap(id -> metricsService.findGaugeStats(id, bucketConfig, percentiles)
                 .map(bucketPoints -> new NamedBucketPoints<>(id.getName(), bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched gauge stats for {tenantId=" + getTenant() + ", " +
+                        "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) ->
                         statsMap.put(namedBucketPoints.id, namedBucketPoints.bucketPoints));
     }
@@ -499,6 +539,8 @@ public class MetricHandler {
         return ids.flatMap(id -> metricsService.findCounterStats(id, bucketConfig.getTimeRange().getStart(),
                 bucketConfig.getTimeRange().getEnd(), bucketConfig.getBuckets(), percentiles)
                 .map(bucketPoints -> new NamedBucketPoints<>(id.getName(), bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched counter stats for {tenantId=" + getTenant() + ", " +
+                        "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) ->
                         statsMap.put(namedBucketPoints.id, namedBucketPoints.bucketPoints));
     }
@@ -511,6 +553,8 @@ public class MetricHandler {
                 .flatMap(id -> metricsService.findCounterStats(new MetricId<>(getTenant(), COUNTER, id),
                         timeRange.getStart(), timeRange.getEnd(), bucketsConfig.getBuckets(), percentiles)
                         .map(bucketPoints -> new NamedBucketPoints(id, bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched counter stats for {tenantId=" + getTenant() + ", " +
+                        "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) -> statsMap.put(namedBucketPoints.id,
                         namedBucketPoints.bucketPoints));
         return counterStats;
@@ -529,6 +573,8 @@ public class MetricHandler {
         return ids.flatMap(id -> metricsService.findRateStats(id, bucketConfig.getTimeRange().getStart(),
                 bucketConfig.getTimeRange().getEnd(), bucketConfig.getBuckets(), percentiles)
                 .map(bucketPoints -> new NamedBucketPoints<>(id.getName(), bucketPoints)))
+                .doOnNext(bucketPoints -> logger.debug("Fetched " + type.getText() + " stats for {tenantId=" +
+                        getTenant() + ", " + "id=" + bucketPoints.id + "}"))
                 .collect(HashMap::new, (statsMap, namedBucketPoints) -> statsMap.put(namedBucketPoints.id,
                         namedBucketPoints.bucketPoints));
     }
