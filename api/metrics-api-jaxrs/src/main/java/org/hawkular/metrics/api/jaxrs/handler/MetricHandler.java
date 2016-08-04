@@ -515,7 +515,7 @@ public class MetricHandler {
     @SuppressWarnings("unchecked")
     private Observable<Map<String, List<? extends BucketPoint>>> getGaugeStats(StatsQueryRequest query,
             BucketConfig bucketsConfig, List<Percentile> percentiles) {
-        String tenant = getTenant()
+        String tenant = getTenant();
         Observable<Map<String, List<? extends BucketPoint>>> gaugeStats;
         gaugeStats = Observable.from(query.getMetrics().get("gauge"))
                 .flatMap(id -> metricsService.findGaugeStats(new MetricId<>(tenant, GAUGE, id),
