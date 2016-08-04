@@ -432,15 +432,26 @@ public class MetricHandler {
                 .first()
                 .doOnNext(results -> {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Returning " + results.get(GAUGE.getText()).keySet().size() + " gauge metrics");
-                        logger.debug("Returning " + results.get(COUNTER.getText()).keySet().size() + " counter " +
-                                "metrics");
-                        logger.debug("Returning " + results.get(AVAILABILITY.getText()).keySet().size() +
-                                " availability metrics");
-                        logger.debug("Returning " + results.get(GAUGE_RATE.getText()).keySet().size() +
-                                " gauge rate metrics");
-                        logger.debug("Returning " + results.get(COUNTER_RATE.getText()).keySet().size() +
-                                " counter rate metrics");
+                        if (results.containsKey(GAUGE.getText())) {
+                            logger.debug("Returning " + results.get(GAUGE.getText()).keySet().size() +
+                                    " gauge metrics");
+                        }
+                        if (results.containsKey(COUNTER.getText())) {
+                            logger.debug("Returning " + results.get(COUNTER.getText()).keySet().size() + " counter " +
+                                    "metrics");
+                        }
+                        if (results.containsKey(AVAILABILITY.getText())) {
+                            logger.debug("Returning " + results.get(AVAILABILITY.getText()).keySet().size() +
+                                    " availability metrics");
+                        }
+                        if (results.containsKey(GAUGE_RATE.getText())) {
+                            logger.debug("Returning " + results.get(GAUGE_RATE.getText()).keySet().size() +
+                                    " gauge rate metrics");
+                        }
+                        if (results.containsKey(COUNTER_RATE.getText())) {
+                            logger.debug("Returning " + results.get(COUNTER_RATE.getText()).keySet().size() +
+                                    " counter rate metrics");
+                        }
                     }
                 })
                 .map(ApiUtils::mapToResponse)
