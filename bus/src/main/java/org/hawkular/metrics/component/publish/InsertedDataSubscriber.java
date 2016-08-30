@@ -24,6 +24,7 @@ import static org.hawkular.metrics.model.MetricType.AVAILABILITY;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
@@ -62,6 +63,11 @@ public class InsertedDataSubscriber {
 
     private Subscription subscription;
 
+    @PostConstruct
+    public void init() {
+        log.info("READY");
+    }
+
     public void onMetricsServiceReady(@Observes @ServiceReady ServiceReadyEvent event) {
         Observable<List<Metric<?>>> events = event.getInsertedData().buffer(50, TimeUnit.MILLISECONDS, 100)
                 .filter(list -> !list.isEmpty())
@@ -71,7 +77,7 @@ public class InsertedDataSubscriber {
     }
 
     private void onInsertedData(Metric<?> metric) {
-        log.tracef("Inserted metric: %s", metric);
+        log.infof("Inserted metric: %s", metric);
         if (metric.getMetricId().getType() == AVAILABILITY) {
             @SuppressWarnings("unchecked")
             Metric<AvailabilityType> avail = (Metric<AvailabilityType>) metric;

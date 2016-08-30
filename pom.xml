@@ -384,6 +384,7 @@
         <module>api/metrics-api-jaxrs</module>
         <module>bus</module>
         <module>hawkular-component</module>
+        <module>hawkular-component-test</module>
         <module>integration-tests</module>
         <module>clients</module>
         <module>containers</module>

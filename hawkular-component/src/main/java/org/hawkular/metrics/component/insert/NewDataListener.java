@@ -23,6 +23,7 @@ import static org.hawkular.metrics.model.MetricType.GAUGE;
 
 import java.util.Collections;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
@@ -80,6 +81,11 @@ public class NewDataListener {
     private JMSConsumer countersConsumer;
     private JMSConsumer availabilityConsumer;
 
+    @PostConstruct
+    public void init() {
+        LOG.info("READY");
+    }
+
     public void onMetricsServiceReady(@Observes @ServiceReady ServiceReadyEvent event) {
         context = connectionFactory.createContext();
         gaugesConsumer = context.createConsumer(gaugesQueue);
@@ -106,6 +112,7 @@ public class NewDataListener {
     }
 
     private void onGaugeData(MetricData metricData) {
+        LOG.info("RECEIVED " + metricData);
         Observable<Metric<Double>> metrics = Observable.from(metricData.getData()).map(singleMetric -> {
             MetricId<Double> id = new MetricId<>(metricData.getTenantId(), GAUGE, singleMetric.getSource());
             DataPoint<Double> dataPoint = new DataPoint<>(singleMetric.getTimestamp(), singleMetric.getValue());
