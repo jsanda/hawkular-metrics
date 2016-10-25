@@ -402,7 +402,9 @@ public class MetricsServiceLifecycle {
         ).withSocketOptions(new SocketOptions()
                 .setReadTimeoutMillis(driverRequestTimeout)
                 .setConnectTimeoutMillis(driverConnectionTimeout)
-        ).withQueryOptions(new QueryOptions().setRefreshSchemaIntervalMillis(driverSchemaRefreshInterval));
+        ).withQueryOptions(new QueryOptions()
+                .setFetchSize(1000)
+                .setRefreshSchemaIntervalMillis(driverSchemaRefreshInterval));
 
         Cluster cluster = clusterBuilder.build();
         cluster.init();
