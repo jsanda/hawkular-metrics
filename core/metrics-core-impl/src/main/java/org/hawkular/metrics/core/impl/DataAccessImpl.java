@@ -39,6 +39,7 @@ import org.hawkular.metrics.core.api.Tenant;
 import org.hawkular.metrics.core.impl.transformers.BatchStatementTransformer;
 import org.hawkular.rx.cassandra.driver.RxSession;
 import org.hawkular.rx.cassandra.driver.RxSessionImpl;
+import org.joda.time.DateTime;
 
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.PreparedStatement;
@@ -132,9 +133,12 @@ public class DataAccessImpl implements DataAccess {
 
     private PreparedStatement findMetricsByTagNameValue;
 
+    private DateTimeService dateTimeService;
+
     public DataAccessImpl(Session session) {
         this.session = session;
         rxSession = new RxSessionImpl(session);
+        dateTimeService = new DateTimeService();
         initPreparedStatements();
     }
 
@@ -405,8 +409,9 @@ public class DataAccessImpl implements DataAccess {
             PreparedStatement statement, Metric<?> metric, Object value, long timestamp, int ttl
     ) {
         MetricId<?> metricId = metric.getId();
+        long dpart = dateTimeService.get24HourTimeSlice(new DateTime(timestamp)).getMillis();
         return statement.bind(ttl, value, metricId.getTenantId(), metricId.getType().getCode(), metricId.getName(),
-                DPART, getTimeUUID(timestamp));
+                dpart, getTimeUUID(timestamp));
     }
 
     @Override
