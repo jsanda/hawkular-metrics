@@ -35,6 +35,8 @@ import org.joda.time.DateTime;
 import org.testng.annotations.BeforeSuite;
 
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.HostDistance;
+import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.QueryOptions;
 import com.datastax.driver.core.ResultSet;
@@ -67,6 +69,11 @@ public abstract class BaseITest {
         Cluster cluster = new Cluster.Builder()
                 .addContactPoints(nodeAddresses.split(","))
                 .withQueryOptions(new QueryOptions().setRefreshSchemaIntervalMillis(0))
+                .withPoolingOptions(new PoolingOptions()
+                        .setMaxConnectionsPerHost(HostDistance.LOCAL, 20)
+                        .setCoreConnectionsPerHost(HostDistance.LOCAL, 20)
+                        .setMaxConnectionsPerHost(HostDistance.REMOTE, 20)
+                        .setCoreConnectionsPerHost(HostDistance.REMOTE, 20))
                 .build();
         session = cluster.connect();
         rxSession = new RxSessionImpl(session);
