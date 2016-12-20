@@ -60,6 +60,11 @@ public class GenerateDataITest extends BaseMetricsITest {
         int numDays = Integer.parseInt(System.getProperty("days", "7"));
         DateTime time = end.minusDays(numDays);
 
+        if (System.getProperty("hours") != null) {
+            int numHours = Integer.parseInt(System.getProperty("hours"));
+            time = end.minusHours(numHours);
+        }
+
         if (System.getProperty("compress") == null) {
             logger.info("Generating " + numDays + " days of raw data");
             generateRawData(time, end);
