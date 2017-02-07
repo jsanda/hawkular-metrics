@@ -43,6 +43,7 @@ import org.hawkular.metrics.model.NumericBucketPoint;
 import org.hawkular.metrics.model.Percentile;
 import org.jboss.logging.Logger;
 import org.joda.time.DateTime;
+import org.joda.time.Duration;
 import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -58,9 +59,11 @@ public class StatsITest extends BaseMetricsITest {
 
     private static Logger logger = Logger.getLogger(StatsITest.class);
 
+    private int ttl = Integer.parseInt(System.getProperty("ttl", "300"));
+
     @Test
     public void getStats() throws Exception {
-        metricsService.setDefaultTTL(Integer.parseInt(System.getProperty("ttl", "300")));
+        metricsService.setDefaultTTL(ttl);
 
         String tenantId = "STATS";
         int numMetrics = Integer.parseInt(System.getProperty("metrics", "2000"));
@@ -83,7 +86,9 @@ public class StatsITest extends BaseMetricsITest {
         }
 
 //        session.execute("alter table data WITH default_time_to_live = 300");
-        session.execute("ALTER TABLE data with gc_grace_seconds = 10800");
+        if (Boolean.valueOf(System.getProperty("resetdb", "true"))) {
+            session.execute("ALTER TABLE data with gc_grace_seconds = 10800");
+        }
 
 //        DateTime end = DateTime.now();
 //        DateTime start = end.minusDays(2);
@@ -144,14 +149,16 @@ public class StatsITest extends BaseMetricsITest {
     private void readStats(String tenantId) {
         Random random = new Random();
         int bucket = random.nextInt(50);
+        int shortQuery = Integer.parseInt(System.getProperty("shortQuery", "1"));
+        int longQuery = Integer.parseInt(System.getProperty("longQuery", "5"));
         List<Percentile> percentiles = asList(new Percentile("0.5"), new Percentile("0.75"),
                 new Percentile("0.9"), new Percentile("0.95"), new Percentile("0.99"));
         long end = System.currentTimeMillis();
         long start;
         if (bucket % 2 == 0) {
-            start = end - (60000 * 4);
+            start = end - Duration.standardMinutes(shortQuery).getMillis();
         } else {
-            start = end - (60000 * 11);
+            start = end - Duration.standardMinutes(longQuery).getMillis();
             logger.debug("Querying past 5 minutes");
         }
         Map<String, String> tags = ImmutableMap.of("bucket", Integer.toString(bucket));
