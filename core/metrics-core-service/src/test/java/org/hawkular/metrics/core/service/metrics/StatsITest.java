@@ -60,25 +60,27 @@ public class StatsITest extends BaseMetricsITest {
 
     @Test
     public void getStats() throws Exception {
-        metricsService.setDefaultTTL(300);
+        metricsService.setDefaultTTL(Integer.parseInt(System.getProperty("ttl", "300")));
 
         String tenantId = "STATS";
-        int numMetrics = 2000;
+        int numMetrics = Integer.parseInt(System.getProperty("metrics", "2000"));
         int numMetricsPerQuery = 50;
         int numReaders = 4;
         List<Completable> created = new ArrayList<>(numMetrics);
 //        Map<String, String> tags = ImmutableMap.of("x", "1", "y", "2");
         List<MetricId<Double>> metricIds = new ArrayList<>(numMetrics);
 
-        for (int i = 0; i < numMetrics; ++i) {
-            MetricId<Double> metricId = new MetricId<>(tenantId, GAUGE, "M" + i);
-            metricIds.add(metricId);
-            int bucket = i % numMetricsPerQuery;
-            Metric<Double> metric = new Metric<>(metricId, ImmutableMap.of("bucket", Integer.toString(bucket)), null);
-            created.add(metricsService.createMetric(metric, true).toCompletable());
-        }
+        if (Boolean.parseBoolean(System.getProperty("createMetrics", "true"))) {
+            for (int i = 0; i < numMetrics; ++i) {
+                MetricId<Double> metricId = new MetricId<>(tenantId, GAUGE, "M" + i);
+                metricIds.add(metricId);
+                int bucket = i % numMetricsPerQuery;
+                Metric<Double> metric = new Metric<>(metricId, ImmutableMap.of("bucket", Integer.toString(bucket)), null);
+                created.add(metricsService.createMetric(metric, true).toCompletable());
+            }
 
-        assertTrue(Completable.merge(created).await(30, SECONDS));
+            assertTrue(Completable.merge(created).await(30, SECONDS));
+        }
 
 //        session.execute("alter table data WITH default_time_to_live = 300");
 //        session.execute("ALTER TABLE data with gc_grace_seconds = 10800");
