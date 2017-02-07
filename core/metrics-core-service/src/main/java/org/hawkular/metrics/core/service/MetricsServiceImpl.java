@@ -175,7 +175,8 @@ public class MetricsServiceImpl implements MetricsService {
      */
     private Map<MetricType<?>, Func1<Row, ? extends DataPoint<?>>> dataPointMappers;
 
-    private int defaultTTL = Duration.standardDays(7).toStandardSeconds().getSeconds();
+//    private int defaultTTL = Duration.standardDays(7).toStandardSeconds().getSeconds();
+    private int defaultTTL = Duration.standardMinutes(5).toStandardSeconds().getSeconds();
 
     private int maxStringSize;
 
@@ -361,7 +362,8 @@ public class MetricsServiceImpl implements MetricsService {
     }
 
     public void setDefaultTTL(int defaultTTL) {
-        this.defaultTTL = Duration.standardDays(defaultTTL).toStandardSeconds().getSeconds();
+//        this.defaultTTL = Duration.standardDays(defaultTTL).toStandardSeconds().getSeconds();
+        this.defaultTTL = defaultTTL;
     }
 
     @Override
