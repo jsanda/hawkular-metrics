@@ -83,7 +83,7 @@ public class StatsITest extends BaseMetricsITest {
         }
 
 //        session.execute("alter table data WITH default_time_to_live = 300");
-//        session.execute("ALTER TABLE data with gc_grace_seconds = 10800");
+        session.execute("ALTER TABLE data with gc_grace_seconds = 10800");
 
 //        DateTime end = DateTime.now();
 //        DateTime start = end.minusDays(2);
