@@ -36,6 +36,7 @@ import org.testng.annotations.BeforeSuite;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.QueryOptions;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.google.common.collect.ImmutableList;
@@ -65,7 +66,8 @@ public abstract class BaseITest {
         String nodeAddresses = System.getProperty("nodes", "127.0.0.1");
         Cluster cluster = new Cluster.Builder()
                 .addContactPoints(nodeAddresses.split(","))
-//                .withProtocolVersion(ProtocolVersion.V4)
+                .withQueryOptions(new QueryOptions().setFetchSize(Integer.parseInt(
+                        System.getProperty("pageSize", "5000"))))
                 .build();
         session = cluster.connect();
         rxSession = new RxSessionImpl(session);
