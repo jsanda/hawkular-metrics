@@ -104,11 +104,11 @@ public class StatsITest extends BaseMetricsITest {
         ScheduledExecutorService writers = Executors.newSingleThreadScheduledExecutor(writerThreadFactory);
         ScheduledExecutorService readers = Executors.newScheduledThreadPool(numReaders, readerThreadFactory);
 
-//        ScheduledExecutorService threadPool = Executors.newScheduledThreadPool(numThreads, readerThreadFactory);
+        int readInterval = Integer.parseInt(System.getProperty("readInterval", "30"));
 
         writers.scheduleAtFixedRate(() -> writeData(tenantId, numMetrics), 0, 1, SECONDS);
         for (int i = 0; i < numReaders; ++i) {
-            readers.scheduleAtFixedRate(() -> readStats(tenantId), 10, 30, SECONDS);
+            readers.scheduleAtFixedRate(() -> readStats(tenantId), 10, readInterval, SECONDS);
         }
 
 //        for (int i = 0; i < numThreads; ++i) {
