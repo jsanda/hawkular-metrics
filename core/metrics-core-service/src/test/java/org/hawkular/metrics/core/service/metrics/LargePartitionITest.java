@@ -85,6 +85,8 @@ public class LargePartitionITest extends BaseMetricsITest {
             hostIds = new ArrayList<>(numHosts);
             groupIds = new ArrayList<>(numGroups);
 
+            int timeout = Integer.parseInt(System.getProperty("timeout", "30"));
+
             String namespaceId = UUID.randomUUID().toString();
             String namespace = UUID.randomUUID().toString();
             List<String> types = asList("pod", "pod_container");
@@ -129,7 +131,7 @@ public class LargePartitionITest extends BaseMetricsITest {
 
                     ++count;
                 }
-                assertTrue(Completable.merge(created).await(30, SECONDS));
+                assertTrue(Completable.merge(created).await(timeout, SECONDS));
             }
 
         }
