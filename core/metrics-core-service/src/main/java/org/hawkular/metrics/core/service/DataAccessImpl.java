@@ -203,15 +203,15 @@ public class DataAccessImpl implements DataAccess {
         updateMetricsIndex = session.prepare(
             "INSERT INTO metrics_idx (tenant_id, type, metric) VALUES (?, ?, ?)");
 
-        addTagsToMetricsIndex = session.prepare(
-            "UPDATE metrics_idx " +
-            "SET tags = tags + ? " +
-            "WHERE tenant_id = ? AND type = ? AND metric = ?");
-
-        deleteTagsFromMetricsIndex = session.prepare(
-            "UPDATE metrics_idx " +
-            "SET tags = tags - ?" +
-            "WHERE tenant_id = ? AND type = ? AND metric = ?");
+//        addTagsToMetricsIndex = session.prepare(
+//            "UPDATE metrics_idx " +
+//            "SET tags = tags + ? " +
+//            "WHERE tenant_id = ? AND type = ? AND metric = ?");
+//
+//        deleteTagsFromMetricsIndex = session.prepare(
+//            "UPDATE metrics_idx " +
+//            "SET tags = tags - ?" +
+//            "WHERE tenant_id = ? AND type = ? AND metric = ?");
 
         readMetricsIndex = session.prepare(
             "SELECT metric, tags, data_retention " +

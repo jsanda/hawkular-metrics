@@ -504,6 +504,18 @@ public class MetricsServiceImpl implements MetricsService {
         return metricObservable;
     }
 
+    @Override
+    public <T> Observable<Metric<T>> findMetricsWithFilters(String tenantId, MetricType<T> type,
+            Map<String, String> tagsQueries, int limit, Func1<Metric<T>, Boolean>[] filters) {
+        Observable<Metric<T>> metricObservable = findMetricsWithFilters(tenantId, type, tagsQueries);
+
+        for (Func1<Metric<T>, Boolean> filter : filters) {
+            metricObservable = metricObservable.filter(filter);
+        }
+
+        return metricObservable;
+    }
+
     private Func1<Row, Boolean> tagValueFilter(String regexp, int index) {
         boolean positive = (!regexp.startsWith("!"));
         Pattern p = PatternUtil.filterPattern(regexp);

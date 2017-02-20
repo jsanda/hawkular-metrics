@@ -122,6 +122,9 @@ public interface MetricsService {
     <T> Observable<Metric<T>> findMetricsWithFilters(String tenantId, MetricType<T> type, Map<String, String>
             tagsQueries, Func1<Metric<T>, Boolean>... filters);
 
+    <T> Observable<Metric<T>> findMetricsWithFilters(String tenantId, MetricType<T> type, Map<String, String>
+            tagsQueries, int limit, Func1<Metric<T>, Boolean>... filters);
+
     /**
      * Returns distinct tag values for a given tag query (using the same query format as findMetricsWithFilters).
      *
