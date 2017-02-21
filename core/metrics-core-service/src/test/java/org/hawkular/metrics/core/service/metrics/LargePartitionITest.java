@@ -28,9 +28,11 @@ import static org.testng.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -146,15 +148,30 @@ public class LargePartitionITest extends BaseMetricsITest {
 
     private void loadMetricIds(int numIds) {
         logger.infof("Loading %d metric ids", numIds);
-        metricIds = rxSession.execute("SELECT metric FROM metrics_idx WHERE tenant_id = '" + tenantId +
+        Ids ids = rxSession.execute("SELECT metric, tags FROM metrics_idx WHERE tenant_id = '" + tenantId +
                 "' AND type = 0 LIMIT " + numIds)
                 .flatMap(Observable::from)
-                .map(row -> new MetricId<>(tenantId, GAUGE, row.getString(0)))
-                .toList()
+                .collect(Ids::new, ((theIds, row) -> {
+                    MetricId<Double> metricId = new MetricId<>(tenantId, GAUGE, row.getString(0));
+                    theIds.metricIds.add(metricId);
+                    Map<String, String> tags = row.getMap(1, String.class, String.class);
+                    theIds.groupIds.add(tags.get("group_id"));
+                    theIds.hostIds.add(tags.get("host_id"));
+                    theIds.podIds.add(tags.get("pod_id"));
+                }))
                 .toBlocking()
                 .firstOrDefault(null);
-        assertNotNull(metricIds);
+        assertNotNull(ids);
+
+        metricIds = new ArrayList<>(ids.metricIds);
+        groupIds = new ArrayList<>(ids.groupIds);
+        hostIds = new ArrayList<>(ids.hostIds);
+        podIds = new ArrayList<>(ids.podIds);
+
         assertEquals(metricIds.size(), numIds);
+        assertTrue(groupIds.size() > 0);
+        assertTrue(hostIds.size() > 0);
+        assertTrue(podIds.size() > 0);
     }
 
     @Test
@@ -165,13 +182,14 @@ public class LargePartitionITest extends BaseMetricsITest {
 
         int numReaders = Integer.parseInt(System.getProperty("readers", "4"));
         int readInterval = Integer.parseInt(System.getProperty("readInterval", "30"));
+        int writeInterval = Integer.parseInt(System.getProperty("writeInterval", "1"));
 
         ThreadFactory writerThreadFactory = new ThreadFactoryBuilder().setNameFormat("writer-%d").build();
         ThreadFactory readerThreadFactory = new ThreadFactoryBuilder().setNameFormat("reader-%d").build();
         ScheduledExecutorService writers = Executors.newSingleThreadScheduledExecutor(writerThreadFactory);
         ScheduledExecutorService readers = Executors.newScheduledThreadPool(numReaders, readerThreadFactory);
 
-        writers.scheduleAtFixedRate(() -> writeData(tenantId), 0, 1, SECONDS);
+        writers.scheduleAtFixedRate(() -> writeData(tenantId), 0, writeInterval, SECONDS);
         for (int i = 0; i < numReaders; ++i) {
             readers.scheduleAtFixedRate(() -> readStats(tenantId), 10, readInterval, SECONDS);
         }
@@ -182,38 +200,42 @@ public class LargePartitionITest extends BaseMetricsITest {
     }
 
     private void readStats(String tenantId) {
-        Random random = new Random();
-        int bucket = random.nextInt(50);
-        int shortQuery = Integer.parseInt(System.getProperty("shortQuery", "1"));
-        int longQuery = Integer.parseInt(System.getProperty("longQuery", "5"));
-        List<Percentile> percentiles = asList(new Percentile("0.5"), new Percentile("0.75"),
-                new Percentile("0.9"), new Percentile("0.95"), new Percentile("0.99"));
-        long end = System.currentTimeMillis();
-        long start;
-        Map<String, String> tags;
+        try {
+            Random random = new Random();
+            int bucket = random.nextInt(50);
+            int shortQuery = Integer.parseInt(System.getProperty("shortQuery", "1"));
+            int longQuery = Integer.parseInt(System.getProperty("longQuery", "5"));
+            List<Percentile> percentiles = asList(new Percentile("0.5"), new Percentile("0.75"),
+                    new Percentile("0.9"), new Percentile("0.95"), new Percentile("0.99"));
+            long end = System.currentTimeMillis();
+            long start;
+            Map<String, String> tags;
 
-        if (bucket % 2 == 0) {
-            start = end - Duration.standardMinutes(shortQuery).getMillis();
-            tags = ImmutableMap.of("pod_name", "pod/" + podIds.get(random.nextInt(podIds.size())));
-        } else {
-            logger.debugf("Querying past %d minutes", longQuery);
-            start = end - Duration.standardMinutes(longQuery).getMillis();
-            tags = ImmutableMap.of(
-                    "host_id", hostIds.get(random.nextInt(hostIds.size())),
-                    "group_id", groupIds.get(random.nextInt(groupIds.size()))
-            );
-        }
+            if (bucket % 2 == 0) {
+                start = end - Duration.standardMinutes(shortQuery).getMillis();
+                tags = ImmutableMap.of("pod_name", "pod/" + podIds.get(random.nextInt(podIds.size())));
+            } else {
+                logger.debugf("Querying past %d minutes", longQuery);
+                start = end - Duration.standardMinutes(longQuery).getMillis();
+                tags = ImmutableMap.of(
+                        "host_id", hostIds.get(random.nextInt(hostIds.size())),
+                        "group_id", groupIds.get(random.nextInt(groupIds.size()))
+                );
+            }
 
-        List<NumericBucketPoint> stats = metricsService.findMetricsWithFilters(tenantId, GAUGE, tags)
-                .map(Metric::getMetricId)
-                .toList()
-                .flatMap(ids -> metricsService.findNumericStats(tenantId, GAUGE, tags, start, end,
-                        Buckets.fromCount(start, end, 60), percentiles, false))
-                .toBlocking()
-                .firstOrDefault(Collections.emptyList());
+            List<NumericBucketPoint> stats = metricsService.findMetricsWithFilters(tenantId, GAUGE, tags)
+                    .map(Metric::getMetricId)
+                    .toList()
+                    .flatMap(ids -> metricsService.findNumericStats(tenantId, GAUGE, tags, start, end,
+                            Buckets.fromCount(start, end, 60), percentiles, false))
+                    .toBlocking()
+                    .firstOrDefault(Collections.emptyList());
 
-        if (stats.isEmpty()) {
-            logger.warnf("Did not find any stats for bucket %d", bucket);
+            if (stats.isEmpty()) {
+                logger.warnf("Did not find any stats for bucket %d", bucket);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to read stats", e);
         }
     }
 
@@ -228,6 +250,13 @@ public class LargePartitionITest extends BaseMetricsITest {
                 () -> logger.tracef("Finished inserting %d data points for timestamp %d", metrics.size(), timestamp),
                 t -> logger.warnf(t, "Failed to insert data points for timestamp %d", timestamp)
         );
+    }
+
+    private static class Ids {
+        Set<MetricId<Double>> metricIds = new HashSet<>();
+        Set<String> podIds = new HashSet<>();
+        Set<String> hostIds = new HashSet<>();
+        Set<String> groupIds = new HashSet<>();
     }
 
 }
