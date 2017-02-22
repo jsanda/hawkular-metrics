@@ -45,7 +45,6 @@ import org.hawkular.metrics.model.MetricId;
 import org.hawkular.metrics.model.NumericBucketPoint;
 import org.hawkular.metrics.model.Percentile;
 import org.jboss.logging.Logger;
-import org.joda.time.Duration;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -80,7 +79,7 @@ public class LargePartitionITest extends BaseMetricsITest {
             int numMetrics = getProperty("metrics", 1000000);
             int numPods = getProperty("pods", 500);
             int numHosts = getProperty("hosts", 10);
-            int numGroups = getProperty("groups", 10);
+            int numGroups = getProperty("numGroups", 10);
 
             metricIds = new ArrayList<>(numMetrics);
             podIds = new ArrayList<>(numPods);
@@ -208,15 +207,15 @@ public class LargePartitionITest extends BaseMetricsITest {
             List<Percentile> percentiles = asList(new Percentile("0.5"), new Percentile("0.75"),
                     new Percentile("0.9"), new Percentile("0.95"), new Percentile("0.99"));
             long end = System.currentTimeMillis();
-            long start;
+            long start = end - 5000;
             Map<String, String> tags;
 
             if (bucket % 2 == 0) {
-                start = end - Duration.standardMinutes(shortQuery).getMillis();
+//                start = end - Duration.standardMinutes(shortQuery).getMillis();
                 tags = ImmutableMap.of("pod_name", "pod/" + podIds.get(random.nextInt(podIds.size())));
             } else {
                 logger.debugf("Querying past %d minutes", longQuery);
-                start = end - Duration.standardMinutes(longQuery).getMillis();
+//                start = end - Duration.standardMinutes(longQuery).getMillis();
                 tags = ImmutableMap.of(
                         "host_id", hostIds.get(random.nextInt(hostIds.size())),
                         "group_id", groupIds.get(random.nextInt(groupIds.size()))
