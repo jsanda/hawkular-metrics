@@ -45,12 +45,12 @@ public class LiveCassandraManager implements ClusterManager {
                 .withPort(9042)
                 .withoutJMXReporting()
                 .withPoolingOptions(new PoolingOptions()
-                                .setMaxConnectionsPerHost(HostDistance.LOCAL, 1024)
-                                .setCoreConnectionsPerHost(HostDistance.LOCAL, 1024)
-                                .setMaxConnectionsPerHost(HostDistance.REMOTE, 1024)
-                                .setCoreConnectionsPerHost(HostDistance.REMOTE, 1024)
-                                .setMaxRequestsPerConnection(HostDistance.LOCAL, 1024)
-                                .setMaxRequestsPerConnection(HostDistance.REMOTE, 1024)
+                                .setMaxConnectionsPerHost(HostDistance.LOCAL, 25)
+                                .setCoreConnectionsPerHost(HostDistance.LOCAL, 25)
+                                .setMaxConnectionsPerHost(HostDistance.REMOTE, 25)
+                                .setCoreConnectionsPerHost(HostDistance.REMOTE, 25)
+                                .setMaxRequestsPerConnection(HostDistance.LOCAL, 25)
+                                .setMaxRequestsPerConnection(HostDistance.REMOTE, 25)
                                 .setMaxQueueSize(1024));
 
         Arrays.stream(nodes.split(",")).forEach(clusterBuilder::addContactPoints);
