@@ -146,6 +146,8 @@ public interface MetricsService {
 
     Observable<Void> addTags(Metric<?> metric, Map<String, String> tags);
 
+    Observable<Void> addTags(Metric<?> metric, Map<String, String> tags, boolean batch);
+
     Observable<Void> deleteTags(Metric<?> metric, Set<String> tags);
 
     /**

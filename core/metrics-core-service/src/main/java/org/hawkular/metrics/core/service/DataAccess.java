@@ -58,6 +58,8 @@ public interface DataAccess {
 
     <T> Observable<ResultSet> addTags(Metric<T> metric, Map<String, String> tags);
 
+    <T> Observable<ResultSet> addTagsBatch(Metric<T> metric, Map<String, String> tags);
+
     <T> Observable<ResultSet> deleteTags(Metric<T> metric, Set<String> tags);
 
     <T> Observable<Integer> updateMetricsIndex(Observable<Metric<T>> metrics);

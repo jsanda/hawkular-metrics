@@ -601,6 +601,25 @@ public class MetricsServiceImpl implements MetricsService {
     }
 
     @Override
+    public Observable<Void> addTags(Metric<?> metric, Map<String, String> tags, boolean batch) {
+        try {
+            checkArgument(tags != null, "Missing tags");
+            checkArgument(isValidTagMap(tags), "Invalid tags; tag key is required");
+        } catch (Exception e) {
+            return Observable.error(e);
+        }
+
+        updateMetricExpiration(metric);
+
+        if (batch) {
+            return dataAccess.addTagsBatch(metric, tags).map(r -> null);
+        } else {
+            return dataAccess.addTags(metric, tags).mergeWith(dataAccess.insertIntoMetricsTagsIndex(metric, tags))
+                    .toList().map(l -> null);
+        }
+    }
+
+    @Override
     public Observable<Void> deleteTags(Metric<?> metric, Set<String> tags) {
         return getMetricTags(metric.getMetricId())
                 .map(loadedTags -> {

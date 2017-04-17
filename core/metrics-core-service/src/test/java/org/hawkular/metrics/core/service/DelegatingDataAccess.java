@@ -94,6 +94,11 @@ public class DelegatingDataAccess implements DataAccess {
     }
 
     @Override
+    public <T> Observable<ResultSet> addTagsBatch(Metric<T> metric, Map<String, String> tags) {
+        return delegate.addTagsBatch(metric, tags);
+    }
+
+    @Override
     public <T> Observable<ResultSet> deleteTags(Metric<T> metric, Set<String> tags) {
         return delegate.deleteTags(metric, tags);
     }

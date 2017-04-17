@@ -47,6 +47,7 @@ import org.hawkular.metrics.model.Tenant;
 import org.hawkular.rx.cassandra.driver.RxSession;
 import org.hawkular.rx.cassandra.driver.RxSessionImpl;
 
+import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.Metadata;
@@ -654,6 +655,22 @@ public class DataAccessImpl implements DataAccess {
         BoundStatement stmt = addTagsToMetricsIndex.bind(tags, metricId.getTenantId(), metricId.getType().getCode(),
                 metricId.getName());
         return rxSession.execute(stmt);
+    }
+
+    @Override
+    public <T> Observable<ResultSet> addTagsBatch(Metric<T> metric, Map<String, String> tags) {
+        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED);
+        MetricId<T> metricId = metric.getMetricId();
+        batch.add(addTagsToMetricsIndex.bind(tags, metricId.getTenantId(), metricId.getType().getCode(),
+                metricId.getName()));
+
+        // (name, value) -> insertMetricsTagsIndex.bind(metricId.getTenantId(), name, value,
+        //        metricId.getType().getCode(), metricId.getName())
+
+        tags.forEach((key, value) -> batch.add(insertMetricsTagsIndex.bind(metricId.getTenantId(), key, value,
+                metricId.getType().getCode(), metricId.getName())));
+
+        return rxSession.execute(batch);
     }
 
     @Override
