@@ -344,8 +344,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
     @Path("/{id}/data")
     @ApiOperation(value = "Deprecated. Please use /raw or /stats endpoints",
                     response = DataPoint.class, responseContainer = "List")
-    public void deprecatedFindCounterData(
-            @Suspended AsyncResponse asyncResponse,
+    public Response deprecatedFindCounterData(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -361,15 +360,13 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
 
         if ((bucketsCount != null || bucketDuration != null) &&
                 (limit != null || order != null)) {
-            asyncResponse.resume(badRequest(new ApiError("Limit and order cannot be used with bucketed results")));
-            return;
+            return badRequest(new ApiError("Limit and order cannot be used with bucketed results"));
         }
 
         if (bucketsCount == null && bucketDuration == null && !Boolean.TRUE.equals(fromEarliest)) {
             TimeRange timeRange = new TimeRange(start, end);
             if (!timeRange.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-                return;
+                return badRequest(new ApiError(timeRange.getProblem()));
             }
 
             if (limit == null) {
@@ -379,25 +376,30 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
                 order = Order.defaultValue(limit, start, end);
             }
 
-            metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(), limit, order)
-                    .toList()
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+            try {
+                Response response = metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(),
+                        limit, order)
+                        .toList()
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
 
-            return;
+                return response;
+            } catch (Exception e) {
+                return ApiUtils.serverError(e);
+            }
         }
 
         Observable<BucketConfig> observableConfig = null;
 
         if (Boolean.TRUE.equals(fromEarliest)) {
             if (start != null || end != null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used without start & end")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used without start & end"));
             }
 
             if (bucketsCount == null && bucketDuration == null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used with bucketed results")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used with bucketed results"));
             }
 
             observableConfig = metricsService.findMetric(metricId).map((metric) -> {
@@ -417,14 +419,12 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
         } else {
             TimeRange timeRange = new TimeRange(start, end);
             if (!timeRange.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-                return;
+                return badRequest(new ApiError(timeRange.getProblem()));
             }
 
             BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
             if (!bucketConfig.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-                return;
+                return badRequest(new ApiError(bucketConfig.getProblem()));
             }
 
             observableConfig = Observable.just(bucketConfig);
@@ -433,16 +433,29 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
         final Percentiles lPercentiles = percentiles != null ? percentiles
                 : new Percentiles(Collections.<Percentile> emptyList());
 
-        observableConfig
-                .flatMap((config) -> metricsService.findCounterStats(metricId,
-                        config.getTimeRange().getStart(),
-                        config.getTimeRange().getEnd(),
-                        config.getBuckets(), lPercentiles.getPercentiles()))
-                .flatMap(Observable::from)
-                .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
-                .toList()
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.error(t)));
+        try {
+            Response response = observableConfig
+                    .flatMap((config) -> metricsService.findCounterStats(metricId,
+                            config.getTimeRange().getStart(),
+                            config.getTimeRange().getEnd(),
+                            config.getBuckets(), lPercentiles.getPercentiles()))
+                    .flatMap(Observable::from)
+                    .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
+                    .toList()
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+            return response;
+        } catch (Exception e) {
+            return ApiUtils.serverError(e);
+        }
+    }
+
+    @Override
+    public void getMetricData(AsyncResponse asyncResponse, String id, String start, String end, Boolean flag,
+            Integer limit, Order order) {
     }
 
     @GET
@@ -456,8 +469,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void getMetricData(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getMetricDataBlocking(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -470,8 +482,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
 
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
 
         if (limit == null) {
@@ -481,10 +492,19 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             order = Order.defaultValue(limit, start, end);
         }
 
-        metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(), limit, order)
-                .toList()
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+        try {
+            Response response = metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(),
+                    limit, order)
+                    .toList()
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+            return response;
+        } catch (Exception e) {
+            return ApiUtils.serverError(e);
+        }
     }
 
     @GET
@@ -501,8 +521,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void getMetricStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getMetricStats(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -515,22 +534,18 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
         MetricId<Long> metricId = new MetricId<>(getTenant(), COUNTER, id);
 
         if (bucketsCount == null && bucketDuration == null) {
-            asyncResponse
-                    .resume(badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used"));
         }
 
         Observable<BucketConfig> observableConfig = null;
 
         if (Boolean.TRUE.equals(fromEarliest)) {
             if (start != null || end != null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used without start & end")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used without start & end"));
             }
 
             if (bucketsCount == null && bucketDuration == null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used with bucketed results")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used with bucketed results"));
             }
 
             observableConfig = metricsService.findMetric(metricId).map((metric) -> {
@@ -550,14 +565,12 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
         } else {
             TimeRange timeRange = new TimeRange(start, end);
             if (!timeRange.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-                return;
+                return badRequest(new ApiError(timeRange.getProblem()));
             }
 
             BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
             if (!bucketConfig.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-                return;
+                return badRequest(new ApiError(bucketConfig.getProblem()));
             }
 
             observableConfig = Observable.just(bucketConfig);
@@ -566,16 +579,24 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
         final Percentiles lPercentiles = percentiles != null ? percentiles
                 : new Percentiles(Collections.<Percentile> emptyList());
 
-        observableConfig
-                .flatMap((config) -> metricsService.findCounterStats(metricId,
-                        config.getTimeRange().getStart(),
-                        config.getTimeRange().getEnd(),
-                        config.getBuckets(), lPercentiles.getPercentiles()))
-                .flatMap(Observable::from)
-                .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
-                .toList()
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.error(t)));
+        try {
+            Response response = observableConfig
+                    .flatMap((config) -> metricsService.findCounterStats(metricId,
+                            config.getTimeRange().getStart(),
+                            config.getTimeRange().getEnd(),
+                            config.getBuckets(), lPercentiles.getPercentiles()))
+                    .flatMap(Observable::from)
+                    .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
+                    .toList()
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+                    return response;
+        } catch (Exception e) {
+            return ApiUtils.serverError(e);
+        }
     }
 
     @GET
@@ -596,8 +617,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void getMetricRate(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getMetricRate(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -609,45 +629,52 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
     ) {
         if ((bucketsCount != null || bucketDuration != null) &&
                 (limit != null || order != null)) {
-            asyncResponse.resume(badRequest(new ApiError("Limit and order cannot be used with bucketed results")));
-            return;
+            return badRequest(new ApiError("Limit and order cannot be used with bucketed results"));
         }
 
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
         BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
         if (!bucketConfig.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-            return;
+            return badRequest(new ApiError(bucketConfig.getProblem()));
         }
 
         MetricId<Long> metricId = new MetricId<>(getTenant(), COUNTER, id);
         Buckets buckets = bucketConfig.getBuckets();
-        if (buckets == null) {
+        Response response;
+        try {
+            if (buckets == null) {
 
-            if (limit == null) {
-                limit = 0;
-            }
-            if (order == null) {
-                order = Order.defaultValue(limit, start, end);
-            }
+                if (limit == null) {
+                    limit = 0;
+                }
+                if (order == null) {
+                    order = Order.defaultValue(limit, start, end);
+                }
 
-            metricsService.findRateData(metricId, timeRange.getStart(), timeRange.getEnd(), limit, order)
-                    .toList()
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(serverError(t)));
-        } else {
-            if(percentiles == null) {
-                percentiles = new Percentiles(Collections.<Percentile>emptyList());
-            }
+                response = metricsService.findRateData(metricId, timeRange.getStart(), timeRange.getEnd(), limit, order)
+                        .toList()
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            } else {
+                if(percentiles == null) {
+                    percentiles = new Percentiles(Collections.<Percentile>emptyList());
+                }
 
-            metricsService.findRateStats(metricId, timeRange.getStart(), timeRange.getEnd(), buckets,
-                    percentiles.getPercentiles())
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(serverError(t)));
+                response = metricsService.findRateStats(metricId, timeRange.getStart(), timeRange.getEnd(), buckets,
+                        percentiles.getPercentiles())
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            }
+            return response;
+        } catch (Exception e) {
+            return serverError(e);
         }
     }
 
@@ -667,8 +694,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void getMetricStatsRate(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getMetricStatsRate(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -678,20 +704,16 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
     ) {
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
 
         BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
         if (!bucketConfig.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-            return;
+            return badRequest(new ApiError(bucketConfig.getProblem()));
         }
 
         if (bucketConfig.isEmpty()) {
-            asyncResponse
-                    .resume(badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used"));
         }
 
         MetricId<Long> metricId = new MetricId<>(getTenant(), COUNTER, id);
@@ -701,10 +723,19 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             percentiles = new Percentiles(Collections.<Percentile> emptyList());
         }
 
-        metricsService.findRateStats(metricId, timeRange.getStart(), timeRange.getEnd(), buckets,
-                percentiles.getPercentiles())
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(serverError(t)));
+        try {
+            Response response = metricsService.findRateStats(metricId, timeRange.getStart(), timeRange.getEnd(),
+                    buckets,
+                    percentiles.getPercentiles())
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+            return response;
+        } catch (Exception e) {
+            return serverError(e);
+        }
     }
 
     @GET
@@ -721,8 +752,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
                     "bucketDuration parameter is required but not both.", response = ApiError.class),
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                 response = ApiError.class) })
-    public void getStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getStats(
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") final String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") final String end,
             @ApiParam(value = "Total number of buckets") @QueryParam("buckets") Integer bucketsCount,
@@ -735,42 +765,48 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
 
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
         BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
         if (bucketConfig.isEmpty()) {
-            asyncResponse.resume(badRequest(new ApiError(
-                    "Either the buckets or bucketDuration parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used"));
         }
         if (!bucketConfig.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-            return;
+            return badRequest(new ApiError(bucketConfig.getProblem()));
         }
         if (metricNames.isEmpty() && (tags == null || tags.getTags().isEmpty())) {
-            asyncResponse.resume(badRequest(new ApiError("Either metrics or tags parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either metrics or tags parameter must be used"));
         }
         if (!metricNames.isEmpty() && !(tags == null || tags.getTags().isEmpty())) {
-            asyncResponse.resume(badRequest(new ApiError("Cannot use both the metrics and tags parameters")));
-            return;
+            return badRequest(new ApiError("Cannot use both the metrics and tags parameters"));
         }
 
         if (percentiles == null) {
             percentiles = new Percentiles(Collections.<Percentile> emptyList());
         }
 
-        if (metricNames.isEmpty()) {
-            metricsService.findNumericStats(getTenant(), MetricType.COUNTER, tags.getTags(), timeRange.getStart(),
-                    timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-        } else {
-            metricsService.findNumericStats(getTenant(), MetricType.COUNTER, metricNames, timeRange.getStart(),
-                    timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+        Response response;
+        try {
+            if (metricNames.isEmpty()) {
+                response = metricsService.findNumericStats(getTenant(), MetricType.COUNTER, tags.getTags(), timeRange
+                                .getStart(),
+                        timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            } else {
+                response = metricsService.findNumericStats(getTenant(), MetricType.COUNTER, metricNames, timeRange
+                                .getStart(),
+                        timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            }
+            return response;
+        } catch (Exception e) {
+            return serverError(e);
         }
     }
 
@@ -779,8 +815,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
     @Path("/data")
     @ApiOperation(value = "Deprecated. Please use /stats endpoint.",
             response = NumericBucketPoint.class, responseContainer = "List")
-    public void deprecatedFindCounterDataStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response deprecatedFindCounterDataStats(
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") final String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") final String end,
             @ApiParam(value = "Total number of buckets") @QueryParam("buckets") Integer bucketsCount,
@@ -790,8 +825,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             @ApiParam(value = "List of metric names", required = false) @QueryParam("metrics") List<String> metricNames,
             @ApiParam(value = "Downsample method (if true then sum of stacked individual stats; defaults to false)",
                 required = false) @DefaultValue("false") @QueryParam("stacked") Boolean stacked) {
-        getStats(asyncResponse, start, end,
-                bucketsCount, bucketDuration, percentiles, tags, metricNames, stacked);
+        return getStats(start, end, bucketsCount, bucketDuration, percentiles, tags, metricNames, stacked);
     }
 
     @GET
@@ -808,8 +842,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
                     "bucketDuration parameter is required but not both.", response = ApiError.class),
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                 response = ApiError.class) })
-    public void getRateStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getRateStats(
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") final String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") final String end,
             @ApiParam(value = "Total number of buckets") @QueryParam("buckets") Integer bucketsCount,
@@ -822,42 +855,48 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
 
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
         BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
         if (bucketConfig.isEmpty()) {
-            asyncResponse.resume(badRequest(new ApiError(
-                    "Either the buckets or bucketsDuration parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either the buckets or bucketsDuration parameter must be used"));
         }
         if (!bucketConfig.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-            return;
+            return badRequest(new ApiError(bucketConfig.getProblem()));
         }
         if (metricNames.isEmpty() && (tags == null || tags.getTags().isEmpty())) {
-            asyncResponse.resume(badRequest(new ApiError("Either metrics or tags parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either metrics or tags parameter must be used"));
         }
         if (!metricNames.isEmpty() && !(tags == null || tags.getTags().isEmpty())) {
-            asyncResponse.resume(badRequest(new ApiError("Cannot use both the metrics and tags parameters")));
-            return;
+            return badRequest(new ApiError("Cannot use both the metrics and tags parameters"));
         }
 
         if (percentiles == null) {
             percentiles = new Percentiles(Collections.<Percentile> emptyList());
         }
 
-        if (metricNames.isEmpty()) {
-            metricsService.findNumericStats(getTenant(), MetricType.COUNTER_RATE, tags.getTags(), timeRange.getStart(),
-                    timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-        } else {
-            metricsService.findNumericStats(getTenant(), MetricType.COUNTER_RATE, metricNames, timeRange.getStart(),
-                    timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+        Response response;
+        try {
+            if (metricNames.isEmpty()) {
+                response = metricsService.findNumericStats(getTenant(), MetricType.COUNTER_RATE, tags.getTags(),
+                        timeRange.getStart(),
+                        timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            } else {
+                response = metricsService.findNumericStats(getTenant(), MetricType.COUNTER_RATE, metricNames, timeRange
+                                .getStart(),
+                        timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            }
+            return response;
+        } catch (Exception e) {
+            return serverError(e);
         }
     }
 
@@ -866,8 +905,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
     @Path("/rate")
     @ApiOperation(value = "Deprecated. Please use /rate/stats endpoint.",
                     response = NumericBucketPoint.class, responseContainer = "List")
-    public void deprecatedFindCounterRateDataStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response deprecatedFindCounterRateDataStats(
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") final String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") final String end,
             @ApiParam(value = "Total number of buckets") @QueryParam("buckets") Integer bucketsCount,
@@ -877,7 +915,7 @@ public class CounterHandler extends MetricsServiceHandler implements IMetricsHan
             @ApiParam(value = "List of metric names", required = false) @QueryParam("metrics") List<String> metricNames,
             @ApiParam(value = "Downsample method (if true then sum of stacked individual stats; defaults to false)",
                     required = false) @DefaultValue("false") @QueryParam("stacked") Boolean stacked) {
-        getStats(asyncResponse, start, end, bucketsCount, bucketDuration, percentiles, tags, metricNames,
+        return getStats(start, end, bucketsCount, bucketDuration, percentiles, tags, metricNames,
                 stacked);
     }
 

@@ -352,7 +352,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void deprecatedFindGaugeData(
+    public Response deprecatedFindGaugeData(
             @Suspended AsyncResponse asyncResponse,
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
@@ -370,14 +370,12 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
 
         if ((bucketsCount != null || bucketDuration != null) &&
                 (limit != null || order != null)) {
-            asyncResponse.resume(badRequest(new ApiError("Limit and order cannot be used with bucketed results")));
-            return;
+            return badRequest(new ApiError("Limit and order cannot be used with bucketed results"));
         }
         if (bucketsCount == null && bucketDuration == null && !Boolean.TRUE.equals(fromEarliest)) {
             TimeRange timeRange = new TimeRange(start, end);
             if (!timeRange.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-                return;
+                return badRequest(new ApiError(timeRange.getProblem()));
             }
 
             if (limit == null) {
@@ -387,25 +385,29 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
                 order = Order.defaultValue(limit, start, end);
             }
 
-            metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(), limit, order)
-                    .toList()
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-
-            return;
+            try {
+                Response response = metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(),
+                        limit, order)
+                        .toList()
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+                return response;
+            } catch (Exception e) {
+                return ApiUtils.serverError(e);
+            }
         }
 
         Observable<BucketConfig> observableConfig;
 
         if (Boolean.TRUE.equals(fromEarliest)) {
             if (start != null || end != null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used without start & end")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used without start & end"));
             }
 
             if (bucketsCount == null && bucketDuration == null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used with bucketed results")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used with bucketed results"));
             }
 
             observableConfig = metricsService.findMetric(metricId).map((metric) -> {
@@ -425,29 +427,41 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
         } else {
             TimeRange timeRange = new TimeRange(start, end);
             if (!timeRange.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-                return;
+                return badRequest(new ApiError(timeRange.getProblem()));
             }
 
             BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
             if (!bucketConfig.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-                return;
+                return badRequest(new ApiError(bucketConfig.getProblem()));
             }
 
             observableConfig = Observable.just(bucketConfig);
         }
 
-        observableConfig
-                .flatMap((config) -> {
-                    List<Percentile> perc = percentiles == null ? Collections.emptyList() : percentiles.getPercentiles();
-                    return metricsService.findGaugeStats(metricId, config, perc);
-                })
-                .flatMap(Observable::from)
-                .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
-                .toList()
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.error(t)));
+        try {
+            Response response =
+            observableConfig
+                    .flatMap((config) -> {
+                        List<Percentile> perc = percentiles == null ? Collections.emptyList() : percentiles.getPercentiles();
+                        return metricsService.findGaugeStats(metricId, config, perc);
+                    })
+                    .flatMap(Observable::from)
+                    .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
+                    .toList()
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+            return response;
+        } catch (Exception e) {
+            return ApiUtils.error(e);
+        }
+    }
+
+    @Override
+    public void getMetricData(AsyncResponse asyncResponse, String id, String start, String end, Boolean flag,
+            Integer limit, Order order) {
     }
 
     @GET
@@ -459,8 +473,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void getMetricData(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getMetricDataBlocking(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -474,8 +487,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
 
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
 
         if (limit == null) {
@@ -485,10 +497,19 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
             order = Order.defaultValue(limit, start, end);
         }
 
-        metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(), limit, order)
-                .toList()
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+        try {
+            Response response = metricsService.findDataPoints(metricId, timeRange.getStart(), timeRange.getEnd(),
+                    limit, order)
+                    .toList()
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+            return response;
+        } catch (Exception e) {
+            return ApiUtils.serverError(e);
+        }
     }
 
     @GET
@@ -504,8 +525,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class)
     })
-    public void getMetricStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getMetricStats(
             @PathParam("id") String id,
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") String end,
@@ -518,17 +538,14 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
         MetricId<Double> metricId = new MetricId<>(getTenant(), GAUGE, id);
 
         if (bucketsCount == null && bucketDuration == null) {
-            asyncResponse
-                    .resume(badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used"));
         }
 
         Observable<BucketConfig> observableConfig;
 
         if (Boolean.TRUE.equals(fromEarliest)) {
             if (start != null || end != null) {
-                asyncResponse.resume(badRequest(new ApiError("fromEarliest can only be used without start & end")));
-                return;
+                return badRequest(new ApiError("fromEarliest can only be used without start & end"));
             }
 
 
@@ -549,29 +566,35 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
         } else {
             TimeRange timeRange = new TimeRange(start, end);
             if (!timeRange.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-                return;
+                return badRequest(new ApiError(timeRange.getProblem()));
             }
 
             BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
             if (!bucketConfig.isValid()) {
-                asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-                return;
+                return badRequest(new ApiError(bucketConfig.getProblem()));
             }
 
             observableConfig = Observable.just(bucketConfig);
         }
 
-        observableConfig
-                .flatMap((config) -> {
-                    List<Percentile> perc = percentiles == null ? Collections.emptyList() : percentiles.getPercentiles();
-                    return metricsService.findGaugeStats(metricId, config, perc);
-                })
-                .flatMap(Observable::from)
-                .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
-                .toList()
-                .map(ApiUtils::collectionToResponse)
-                .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.error(t)));
+        try {
+            Response response = observableConfig
+                    .flatMap((config) -> {
+                        List<Percentile> perc = percentiles == null ? Collections.emptyList() : percentiles.getPercentiles();
+                        return metricsService.findGaugeStats(metricId, config, perc);
+                    })
+                    .flatMap(Observable::from)
+                    .skipWhile(bucket -> Boolean.TRUE.equals(fromEarliest) && bucket.isEmpty())
+                    .toList()
+                    .map(ApiUtils::collectionToResponse)
+                    .toSingle()
+                    .toBlocking()
+                    .value();
+
+            return response;
+        } catch (Exception e) {
+            return ApiUtils.error(e);
+        }
     }
 
     @GET
@@ -590,8 +613,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
                     response = ApiError.class),
             @ApiResponse(code = 500, message = "Unexpected error occurred while fetching metric data.",
                     response = ApiError.class) })
-    public void getStats(
-            @Suspended AsyncResponse asyncResponse,
+    public Response getStats(
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") final String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") final String end,
             @ApiParam(value = "Total number of buckets") @QueryParam("buckets") Integer bucketsCount,
@@ -604,42 +626,47 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
 
         TimeRange timeRange = new TimeRange(start, end);
         if (!timeRange.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(timeRange.getProblem())));
-            return;
+            return badRequest(new ApiError(timeRange.getProblem()));
         }
         BucketConfig bucketConfig = new BucketConfig(bucketsCount, bucketDuration, timeRange);
         if (bucketConfig.isEmpty()) {
-            asyncResponse.resume(badRequest(new ApiError(
-                    "Either the buckets or bucketDuration parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either the buckets or bucketDuration parameter must be used"));
         }
         if (!bucketConfig.isValid()) {
-            asyncResponse.resume(badRequest(new ApiError(bucketConfig.getProblem())));
-            return;
+            return badRequest(new ApiError(bucketConfig.getProblem()));
         }
         if (metricNames.isEmpty() && (tags == null || tags.getTags().isEmpty())) {
-            asyncResponse.resume(badRequest(new ApiError("Either metrics or tags parameter must be used")));
-            return;
+            return badRequest(new ApiError("Either metrics or tags parameter must be used"));
         }
         if (!metricNames.isEmpty() && !(tags == null || tags.getTags().isEmpty())) {
-            asyncResponse.resume(badRequest(new ApiError("Cannot use both the metrics and tags parameters")));
-            return;
+            return badRequest(new ApiError("Cannot use both the metrics and tags parameters"));
         }
 
         if(percentiles == null) {
             percentiles = new Percentiles(Collections.emptyList());
         }
 
-        if (metricNames.isEmpty()) {
-            metricsService.findNumericStats(getTenant(), GAUGE, tags.getTags(), timeRange.getStart(),
-                    timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
-        } else {
-            metricsService.findNumericStats(getTenant(), GAUGE, metricNames, timeRange.getStart(),
-                    timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
-                    .map(ApiUtils::collectionToResponse)
-                    .subscribe(asyncResponse::resume, t -> asyncResponse.resume(ApiUtils.serverError(t)));
+        try {
+            Response response;
+
+            if (metricNames.isEmpty()) {
+                response = metricsService.findNumericStats(getTenant(), GAUGE, tags.getTags(), timeRange.getStart(),
+                        timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            } else {
+                response = metricsService.findNumericStats(getTenant(), GAUGE, metricNames, timeRange.getStart(),
+                        timeRange.getEnd(), bucketConfig.getBuckets(), percentiles.getPercentiles(), stacked)
+                        .map(ApiUtils::collectionToResponse)
+                        .toSingle()
+                        .toBlocking()
+                        .value();
+            }
+            return response;
+        } catch (Exception e) {
+            return ApiUtils.serverError(e);
         }
     }
 
@@ -684,8 +711,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
     @Path("/data")
     @ApiOperation(value = "Deprecated. Please use /stats endpoint.",
             response = NumericBucketPoint.class, responseContainer = "List")
-    public void deprecatedFindData(
-            @Suspended AsyncResponse asyncResponse,
+    public Response deprecatedFindData(
             @ApiParam(value = "Defaults to now - 8 hours") @QueryParam("start") final String start,
             @ApiParam(value = "Defaults to now") @QueryParam("end") final String end,
             @ApiParam(value = "Total number of buckets") @QueryParam("buckets") Integer bucketsCount,
@@ -696,7 +722,7 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
             @ApiParam(value = "Downsample method (if true then sum of stacked individual stats; defaults to false)")
             @DefaultValue("false") @QueryParam("stacked") Boolean stacked) {
 
-        getStats(asyncResponse, start, end, bucketsCount, bucketDuration, percentiles, tags, metricNames, stacked);
+        return getStats(start, end, bucketsCount, bucketDuration, percentiles, tags, metricNames, stacked);
     }
 
     @GET
