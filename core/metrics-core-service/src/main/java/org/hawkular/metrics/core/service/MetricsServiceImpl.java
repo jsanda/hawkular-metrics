@@ -648,8 +648,9 @@ public class MetricsServiceImpl implements MetricsService {
         if(metricType == GAUGE || metricType == AVAILABILITY || metricType == COUNTER) {
             long sliceStart = DateTimeService.getTimeSlice(start, Duration.standardHours(2));
 
-            Observable<DataPoint<T>> uncompressedPoints = finder.call(metricId, start, end, limit, safeOrder, pageSize)
-                    .map(mapper);
+//            Observable<DataPoint<T>> uncompressedPoints = finder.call(metricId, start, end, limit, safeOrder, pageSize)
+//                    .map(mapper);
+            Observable<DataPoint<T>> uncompressedPoints = Observable.empty();
 
             Observable<DataPoint<T>> compressedPoints =
                     dataAccess.findCompressedData(metricId, sliceStart, end, limit, safeOrder)
