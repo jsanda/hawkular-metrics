@@ -89,6 +89,7 @@ public class LongTermStorageITest extends BaseMetricsITest {
             ids.forEach(id -> {
                 Stopwatch stopwatch = Stopwatch.createStarted();
                 metricsService.findGaugeStats(id, bucketConfig, percentiles)
+                        .doOnNext(bucketPoints -> logger.infof("Retrieved %s", bucketPoints))
                         .toCompletable()
                         .await();
                 stopwatch.stop();
