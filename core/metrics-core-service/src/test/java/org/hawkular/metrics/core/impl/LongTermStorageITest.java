@@ -85,16 +85,16 @@ public class LongTermStorageITest extends BaseMetricsITest {
         List<Percentile> percentiles = asList(new Percentile("50.0"), new Percentile("90.0"), new Percentile("99.0"),
                 new Percentile("99.9"));
 
-//        for (int i = 0; i < 10; ++i) {
-//            ids.forEach(id -> {
-//                Stopwatch stopwatch = Stopwatch.createStarted();
-//                metricsService.findGaugeStats(id, bucketConfig, percentiles)
-//                        .toCompletable()
-//                        .await();
-//                stopwatch.stop();
-//                logger.infof("Query completed in %d ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
-//            });
-//        }
+        for (int i = 0; i < 10; ++i) {
+            ids.forEach(id -> {
+                Stopwatch stopwatch = Stopwatch.createStarted();
+                metricsService.findGaugeStats(id, bucketConfig, percentiles)
+                        .toCompletable()
+                        .await();
+                stopwatch.stop();
+                logger.infof("Query completed in %d ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+            });
+        }
 
         logger.info("Group queries...");
         for (int i = 0; i < 10; ++i) {
