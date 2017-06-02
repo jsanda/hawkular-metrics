@@ -73,7 +73,7 @@ public class LongTermStorageITest extends BaseMetricsITest {
 
         List<MetricId<Double>> ids = new ArrayList<>(numMetrics);
         for (int i = 0; i < numMetrics; ++i) {
-            ids.add(new MetricId<>(tenantId, GAUGE, "M" + i));
+            ids.add(new MetricId<>(tenantId + i, GAUGE, "M" + i));
         }
 
         if (Boolean.getBoolean("generate-data")) {
@@ -86,16 +86,25 @@ public class LongTermStorageITest extends BaseMetricsITest {
                 new Percentile("99.9"));
 
         for (int i = 0; i < 10; ++i) {
-            for (int j = 0; j < numMetrics; ++j) {
-                MetricId<Double> id = new MetricId<>(tenantId + j, GAUGE, "M" + j);
+            ids.forEach(id -> {
                 Stopwatch stopwatch = Stopwatch.createStarted();
                 metricsService.findGaugeStats(id, bucketConfig, percentiles)
-                        .doOnNext(bucketPoints -> logger.infof("Retrieved %s", bucketPoints))
                         .toCompletable()
                         .await();
                 stopwatch.stop();
                 logger.infof("Query completed in %d ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
-            }
+            });
+        }
+
+        logger.info("Group queries...");
+        for (int i = 0; i < 10; ++i) {
+            Stopwatch stopwatch = Stopwatch.createStarted();
+            metricsService.findNumericStats(ids, start.getMillis(), end.getMillis(), bucketConfig.getBuckets(),
+                    percentiles, false, false)
+                    .toCompletable()
+                    .await();
+            stopwatch.stop();
+            logger.infof("Group query completed in %d ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
         }
     }
 
