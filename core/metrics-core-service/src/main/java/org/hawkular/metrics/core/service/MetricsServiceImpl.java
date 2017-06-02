@@ -838,11 +838,7 @@ public class MetricsServiceImpl implements MetricsService {
         if (!stacked) {
             if (!isRate) {
                 return Observable.from(metrics)
-                        .flatMap(metricId -> {
-                            log.infof("Fetching data points for %s", metricId);
-                            return findDataPoints(metricId, start, end, 0, Order.DESC)
-                                    .doOnCompleted(() -> log.infof("Finished fetching data points for %s", metricId));
-                        })
+                        .flatMap(metricId -> findDataPoints(metricId, start, end, 0, Order.DESC))
                         .compose(new NumericBucketPointTransformer(buckets, percentiles));
             } else {
                 return Observable.from(metrics)
