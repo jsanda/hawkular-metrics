@@ -86,7 +86,8 @@ public class LongTermStorageITest extends BaseMetricsITest {
                 new Percentile("99.9"));
 
         for (int i = 0; i < 10; ++i) {
-            ids.forEach(id -> {
+            for (int j = 0; j < numMetrics; ++j) {
+                MetricId<Double> id = new MetricId<>(tenantId + j, GAUGE, "M" + j);
                 Stopwatch stopwatch = Stopwatch.createStarted();
                 metricsService.findGaugeStats(id, bucketConfig, percentiles)
                         .doOnNext(bucketPoints -> logger.infof("Retrieved %s", bucketPoints))
@@ -94,7 +95,7 @@ public class LongTermStorageITest extends BaseMetricsITest {
                         .await();
                 stopwatch.stop();
                 logger.infof("Query completed in %d ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
-            });
+            }
         }
     }
 
