@@ -37,6 +37,7 @@ import org.hawkular.metrics.model.Metric;
 import org.hawkular.metrics.model.MetricId;
 import org.jboss.logging.Logger;
 import org.joda.time.DateTime;
+import org.joda.time.Duration;
 import org.testng.annotations.Test;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -80,7 +81,7 @@ public class LongTermStorageITest extends BaseMetricsITest {
                     .toCompletable()
                     .await();
             time = time.plusMinutes(1);
-            if (time.equals(DateTimeService.current24HourTimeSlice())) {
+            if (time.equals(DateTimeService.getTimeSlice(time, Duration.standardDays(1)))) {
                 logger.infof("Current day is %s", time.toDate());
             }
             if (time.equals(nextCompressionTime)) {
