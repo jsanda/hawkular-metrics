@@ -16,6 +16,7 @@
  */
 package org.hawkular.metrics.core.impl;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
 import static org.hawkular.metrics.model.MetricType.GAUGE;
@@ -35,11 +36,15 @@ import org.hawkular.metrics.datetime.DateTimeService;
 import org.hawkular.metrics.model.DataPoint;
 import org.hawkular.metrics.model.Metric;
 import org.hawkular.metrics.model.MetricId;
+import org.hawkular.metrics.model.Percentile;
+import org.hawkular.metrics.model.param.BucketConfig;
+import org.hawkular.metrics.model.param.TimeRange;
 import org.jboss.logging.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import rx.Observable;
@@ -52,6 +57,8 @@ public class LongTermStorageITest extends BaseMetricsITest {
 
     private static Logger logger = Logger.getLogger(LongTermStorageITest.class);
 
+    final String tenantId = "LTS";
+
     Random random = new Random();
 
     ExecutorService compressionJobs;
@@ -60,20 +67,42 @@ public class LongTermStorageITest extends BaseMetricsITest {
 
     @Test
     public void queryLongTermData() throws Exception {
-        String tenantId = "LTS";
         int numMetrics = 25;
         DateTime end = DateTimeService.current24HourTimeSlice();
-        DateTime time = end.minusYears(1).minusMonths(1);
-        DateTime nextCompressionTime = time.plusHours(2);
-
-        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("compression-thread-pool-%d").build();
-        compressionJobs = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
-                threadFactory, new ThreadPoolExecutor.DiscardPolicy());
+        DateTime start = end.minusYears(1).minusMonths(1);
 
         List<MetricId<Double>> ids = new ArrayList<>(numMetrics);
         for (int i = 0; i < numMetrics; ++i) {
-            ids.add(new MetricId<>(tenantId + i, GAUGE, "M" + i));
+            ids.add(new MetricId<>(tenantId, GAUGE, "M" + i));
         }
+
+        if (Boolean.getBoolean("generate-data")) {
+            generateData(ids, end, start);
+        }
+
+        BucketConfig bucketConfig = new BucketConfig(null, new org.hawkular.metrics.model.param.Duration(1,
+                TimeUnit.DAYS), new TimeRange(start.getMillis(), end.getMillis()));
+        List<Percentile> percentiles = asList(new Percentile("50.0"), new Percentile("90.0"), new Percentile("99.0"),
+                new Percentile("99.9"));
+
+        for (int i = 0; i < 10; ++i) {
+            ids.forEach(id -> {
+                Stopwatch stopwatch = Stopwatch.createStarted();
+                metricsService.findGaugeStats(id, bucketConfig, percentiles)
+                        .toCompletable()
+                        .await();
+                stopwatch.stop();
+                logger.infof("Query completed in %d ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+            });
+        }
+    }
+
+    private void generateData(List<MetricId<Double>> ids, DateTime end, DateTime start) throws Exception {
+        DateTime time = start;
+        DateTime nextCompressionTime = time.plusHours(2);
+        ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("compression-thread-pool-%d").build();
+        compressionJobs = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+                threadFactory, new ThreadPoolExecutor.DiscardPolicy());
 
         while (time.isBefore(end)) {
             Observable<Metric<Double>> dataPoints = createDataPoints(ids, time);
