@@ -70,7 +70,9 @@ public abstract class BaseITest {
         String nodeAddresses = System.getProperty("nodes", "127.0.0.1");
         Cluster cluster = new Cluster.Builder()
                 .addContactPoints(nodeAddresses.split(","))
-                .withQueryOptions(new QueryOptions().setRefreshSchemaIntervalMillis(0))
+                .withQueryOptions(new QueryOptions()
+                        .setRefreshSchemaIntervalMillis(0)
+                        .setFetchSize(Integer.getInteger("page-size", 5000)))
                 .build();
         session = cluster.connect();
         rxSession = new RxSessionImpl(session);
