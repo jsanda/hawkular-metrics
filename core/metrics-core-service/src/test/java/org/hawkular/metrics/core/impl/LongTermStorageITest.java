@@ -69,7 +69,7 @@ public class LongTermStorageITest extends BaseMetricsITest {
     public void queryLongTermData() throws Exception {
         int numMetrics = 25;
         DateTime end = DateTimeService.current24HourTimeSlice();
-        DateTime start = end.minusYears(1).minusMonths(1);
+        DateTime start = end.minusYears(2).minusMonths(1);
 
         List<MetricId<Double>> ids = new ArrayList<>(numMetrics);
         for (int i = 0; i < numMetrics; ++i) {
