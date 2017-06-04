@@ -60,11 +60,17 @@ public class NumericBucketPointTransformer
                         NumericDataPointCollector::increment))
                 .map(NumericDataPointCollector::toBucketPoint)
                 .toMap(NumericBucketPoint::getStart)
-                .map(pointMap -> NumericBucketPoint.toList(pointMap, buckets))
-                .doOnCompleted(() -> {
-                        stopwach.get().stop();
-                        logger.infof("Finished transforming data points in %d ms",
-                                stopwach.get().elapsed(MILLISECONDS));
+//                .map(pointMap -> NumericBucketPoint.toList(pointMap, buckets))
+                .map(pointMap -> {
+                    stopwach.get().stop();
+                    logger.infof("Finished transforming data points in %d ms",
+                            stopwach.get().elapsed(MILLISECONDS));
+                    return NumericBucketPoint.toList(pointMap, buckets);
                 });
+//                .doOnCompleted(() -> {
+//                        stopwach.get().stop();
+//                        logger.infof("Finished transforming data points in %d ms",
+//                                stopwach.get().elapsed(MILLISECONDS));
+//                });
     }
 }
