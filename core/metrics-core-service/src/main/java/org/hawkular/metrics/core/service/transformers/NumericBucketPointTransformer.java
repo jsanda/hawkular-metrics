@@ -53,7 +53,7 @@ public class NumericBucketPointTransformer
     public Observable<List<NumericBucketPoint>> call(Observable<DataPoint<? extends Number>> dataPoints) {
         AtomicReference<Stopwatch> stopwach = new AtomicReference<>();
         return dataPoints
-                .doOnSubscribe(() -> stopwach.set(Stopwatch.createStarted()))
+                .doOnNext(d -> stopwach.compareAndSet(null, Stopwatch.createStarted()))
                 .groupBy(dataPoint -> buckets.getIndex(dataPoint.getTimestamp()))
                 .flatMap(group -> group.collect(()
                                 -> new NumericDataPointCollector(buckets, group.getKey(), percentiles),
