@@ -90,6 +90,7 @@ import com.datastax.driver.core.ResultSetFuture;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.DriverException;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -837,8 +838,14 @@ public class MetricsServiceImpl implements MetricsService {
         checkArgument(isValidTimeRange(start, end), "Invalid time range");
         if (!stacked) {
             if (!isRate) {
+                Stopwatch stopwatch = Stopwatch.createStarted();
                 return Observable.from(metrics)
                         .flatMap(metricId -> findDataPoints(metricId, start, end, 0, Order.DESC))
+                        .doOnCompleted(() -> {
+                                stopwatch.stop();
+                                log.infof("Finished fetching data points in %d ms",
+                                        stopwatch.elapsed(TimeUnit.MILLISECONDS));
+                        })
                         .compose(new NumericBucketPointTransformer(buckets, percentiles));
             } else {
                 return Observable.from(metrics)
