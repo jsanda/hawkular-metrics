@@ -121,6 +121,23 @@
       <scope>provided</scope>
     </dependency>
 
+    <dependency>
+      <groupId>io.opentracing.contrib</groupId>
+      <artifactId>opentracing-jaxrs2</artifactId>
+      <version>${version.io.opentracing.contrib}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.opentracing.contrib</groupId>
+      <artifactId>opentracing-rxjava-1</artifactId>
+      <version>0.0.8</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.jaegertracing</groupId>
+      <artifactId>jaeger-core</artifactId>
+    </dependency>
+
     <!-- documentation -->
     <dependency>
       <groupId>io.swagger</groupId>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2017 Red Hat, Inc. and/or its affiliates
+ * Copyright 2014-2018 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,12 +77,15 @@ import org.hawkular.metrics.model.param.Tags;
 import org.hawkular.metrics.model.param.TimeRange;
 import org.jboss.resteasy.annotations.GZIP;
 
+import io.opentracing.rxjava.TracingSubscriber;
+import io.opentracing.util.GlobalTracer;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import rx.Observable;
+import rx.Subscriber;
 import rx.schedulers.Schedulers;
 
 /**
@@ -317,7 +320,8 @@ public class GaugeHandler extends MetricsServiceHandler implements IMetricsHandl
             @ApiParam(value = "List of metrics", required = true) List<Metric<Double>> gauges) {
         Observable<Metric<Double>> metrics = Functions.metricToObservable(getTenant(), gauges, GAUGE);
         Observable<Void> observable = metricsService.addDataPoints(GAUGE, metrics);
-        observable.subscribe(new ResultSetObserver(asyncResponse));
+        Subscriber<Void> subscriber = new ResultSetObserver(asyncResponse);
+        observable.subscribe(new TracingSubscriber<>(subscriber, "add-gauge-data", GlobalTracer.get()));
     }
 
     @POST

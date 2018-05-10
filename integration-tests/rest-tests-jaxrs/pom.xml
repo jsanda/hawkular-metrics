@@ -35,6 +35,9 @@
     <wildfly-maven-plugin.skip>true</wildfly-maven-plugin.skip>
     <cassandra.keyspace>hawkular_metrics_rest_tests</cassandra.keyspace>
     <scheduler.units>seconds</scheduler.units>
+    <jaeger.agent.hostname>localhost</jaeger.agent.hostname>
+    <jaeger.agent.port>6831</jaeger.agent.port>
+    <resetdb>true</resetdb>
   </properties>
 
   <dependencies>
@@ -87,6 +90,10 @@
       <groupId>org.jboss.logging</groupId>
       <artifactId>jboss-logging</artifactId>
       <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.jaegertracing</groupId>
+      <artifactId>jaeger-core</artifactId>
     </dependency>
   </dependencies>
 
@@ -145,6 +152,8 @@
                 <hawkular-metrics.cassandra.schema.refresh-interval>0</hawkular-metrics.cassandra.schema.refresh-interval>
                 <hawkular.metrics.admin-token>${admin-token}</hawkular.metrics.admin-token>
                 <project.version>${project.version}</project.version>
+                <JAEGER_AGENT_HOST>${jaeger.agent.hostname}</JAEGER_AGENT_HOST>
+                <DJAEGER_AGENT_PORT>${jaeger.agent.port}</DJAEGER_AGENT_PORT>
               </systemPropertyVariables>
             </configuration>
             <executions>
@@ -164,7 +173,7 @@
               <executable>java</executable>
               <arguments>
                 <argument>-Dhawkular.metrics.cassandra.keyspace=${cassandra.keyspace}</argument>
-                <argument>-Dhawkular.metrics.cassandra.resetdb=true</argument>
+                <argument>-Dhawkular.metrics.cassandra.resetdb=${resetdb}</argument>
                 <argument>-jar</argument>
                 <argument>../../core/schema-installer/target/hawkular-metrics-schema-installer-${project.version}.jar</argument>
               </arguments>
@@ -222,6 +231,8 @@
                     <javaOpt>-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=8787</javaOpt>
                     <javaOpt>-Dhawkular-alerts.engine-period=50</javaOpt>
                     <javaOpt>-Dhawkular.metrics.publish-period=50</javaOpt>
+                    <javaOpt>-DJAEGER_AGENT_HOST=${jaeger.agent.hostname}</javaOpt>
+                    <javaOpt>-DJAEGER_AGENT_PORT=${jaeger.agent.port}</javaOpt>
                     <!-- Tests don't require SMTP server but for manual verification of test e-mail, run on 2525 -->
                     <javaOpt>-Dmail.smtp.port=2525</javaOpt>
                   </javaOpts>

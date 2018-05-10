@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2015 Red Hat, Inc. and/or its affiliates
+ * Copyright 2014-2018 Red Hat, Inc. and/or its affiliates
  * and other contributors as indicated by the @author tags.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,14 +24,14 @@ import javax.ws.rs.core.Response;
 import org.hawkular.metrics.api.jaxrs.util.ApiUtils;
 import org.hawkular.metrics.model.ApiError;
 
-import rx.Observer;
+import rx.Subscriber;
 
 /**
  * Observer that returns empty 200 if everything went alright and ApiError if there was an exception.
  *
  * @author miburman
  */
-public class ResultSetObserver implements Observer<Void> {
+public class ResultSetObserver extends Subscriber<Void> {
 
     private AsyncResponse asyncResponse;
 

@@ -110,6 +110,7 @@
     <version.org.jboss.logging.jboss-logging-tools>2.0.1.Final</version.org.jboss.logging.jboss-logging-tools>
     <version.org.infinispan.wildfly>8.0.1.Final</version.org.infinispan.wildfly>
     <version.org.slf4j>1.7.7</version.org.slf4j>
+    <version.io.jaegertracing>0.27.0</version.io.jaegertracing>
     <version.io.reactivex.rxjava>1.3.0</version.io.reactivex.rxjava>
     <version.io.reactivex.rxjava-math>1.0.0</version.io.reactivex.rxjava-math>
     <version.io.reactivex.rxjava-guava>1.0.3</version.io.reactivex.rxjava-guava>
@@ -124,6 +125,7 @@
     <version.commons-codec>1.10</version.commons-codec>
     <version.io.fabric8>2.2.16</version.io.fabric8>
     <version.io.netty>4.0.47.Final</version.io.netty>
+    <version.io.opentracing.contrib>0.1.4</version.io.opentracing.contrib>
     <version.io.vertx.vertx-core>3.3.1</version.io.vertx.vertx-core>
     <version.maven-surefire-report-plugin>2.6</version.maven-surefire-report-plugin>
     <version.org.acplt.oncrpc>1.0.7</version.org.acplt.oncrpc>
@@ -273,6 +275,16 @@
         <groupId>org.codehaus.groovy.modules.http-builder</groupId>
         <artifactId>http-builder</artifactId>
         <version>${version.org.codehaus.groovy.modules.http-builder}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.jaegertracing</groupId>
+        <artifactId>jaeger-core</artifactId>
+        <version>${version.io.jaegertracing}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.opentracing.contrib</groupId>
+        <artifactId>opentracing-rxjava-1</artifactId>
+        <version>0.0.8</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

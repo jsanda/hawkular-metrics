@@ -116,6 +116,11 @@
       <artifactId>jboss-logging-processor</artifactId>
       <scope>provided</scope>
     </dependency>
+
+    <dependency>
+      <groupId>io.opentracing.contrib</groupId>
+      <artifactId>opentracing-rxjava-1</artifactId>
+    </dependency>
   </dependencies>
 
   <build>
